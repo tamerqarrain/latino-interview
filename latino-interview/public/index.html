@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Latino — Voice Interview</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #070b0f;
+    --surface: #0d1520;
+    --surface2: #111c2e;
+    --border: #1a2840;
+    --gold: #c9a84c;
+    --gold-dim: #6b5520;
+    --gold-glow: rgba(201,168,76,0.12);
+    --text: #ddd8cc;
+    --text-dim: #5a6b80;
+    --green: #27ae60;
+    --green-glow: rgba(39,174,96,0.15);
+    --red: #e74c3c;
+    --blue: #3a85d8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Noise texture overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    background-size: 200px;
+    pointer-events: none; z-index: 0;
+  }
+
+  /* Radial ambient */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 50% 50%, rgba(201,168,76,0.05) 0%, transparent 65%);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ══════════════════════════════════════
+     SCREENS
+  ══════════════════════════════════════ */
+  .screen {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 10;
+    transition: opacity .4s;
+  }
+  .screen.hidden { opacity: 0; pointer-events: none; }
+
+  /* ══════════════════════════════════════
+     SETUP SCREEN
+  ══════════════════════════════════════ */
+  .setup-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 52px 56px;
+    width: 460px;
+    position: relative;
+    box-shadow: 0 40px 120px rgba(0,0,0,0.6), 0 0 80px rgba(201,168,76,0.06);
+  }
+
+  .setup-card::before {
+    content: '';
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 100px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+
+  .brand {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .brand-orb {
+    width: 72px; height: 72px; border-radius: 50%;
+    border: 1.5px solid var(--gold);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 14px;
+    background: radial-gradient(circle at 35% 30%, #1a2535, var(--bg));
+    box-shadow: 0 0 40px rgba(201,168,76,0.18), inset 0 0 20px rgba(201,168,76,0.06);
+    position: relative;
+  }
+
+  .brand-orb::after {
+    content: '';
+    position: absolute; inset: -5px; border-radius: 50%;
+    border: 1px solid rgba(201,168,76,0.18);
+  }
+
+  .brand-orb span {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 32px; font-weight: 700; color: var(--gold);
+  }
+
+  .brand h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px; font-weight: 600; color: var(--text);
+    letter-spacing: 4px; text-transform: uppercase;
+  }
+  .brand p { font-size: 10px; color: var(--text-dim); letter-spacing: 2px; margin-top: 5px; }
+
+  .field { margin-bottom: 18px; }
+  .field label {
+    display: block; font-size: 9px; letter-spacing: 2.5px;
+    text-transform: uppercase; color: var(--gold);
+    margin-bottom: 7px;
+  }
+  .field input, .field select {
+    width: 100%; padding: 11px 14px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px;
+    outline: none; transition: border .2s, box-shadow .2s;
+    appearance: none; -webkit-appearance: none;
+  }
+  .field input::placeholder { color: var(--text-dim); }
+  .field input:focus, .field select:focus {
+    border-color: var(--gold-dim);
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.07);
+  }
+  .field select option { background: #111c2e; }
+
+  .btn-begin {
+    width: 100%; margin-top: 10px;
+    padding: 15px; border-radius: 10px;
+    border: 1px solid var(--gold);
+    background: transparent; color: var(--gold);
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 19px; font-weight: 600; letter-spacing: 3px;
+    cursor: pointer; transition: all .3s;
+    position: relative; overflow: hidden;
+  }
+  .btn-begin::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: var(--gold-glow); transform: scaleX(0); transform-origin: left;
+    transition: transform .35s;
+  }
+  .btn-begin:hover::before { transform: scaleX(1); }
+  .btn-begin:hover { box-shadow: 0 0 40px rgba(201,168,76,0.18); }
+  .btn-begin span { position: relative; z-index: 1; }
+  .btn-begin:disabled { opacity: .4; cursor: default; }
+
+  .setup-error {
+    font-size: 11px; color: var(--red);
+    text-align: center; margin-top: 10px;
+    min-height: 16px;
+  }
+
+  /* ══════════════════════════════════════
+     INTERVIEW ROOM
+  ══════════════════════════════════════ */
+  #roomScreen {
+    flex-direction: column;
+  }
+
+  /* Top strip */
+  .room-top {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: 16px 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    background: linear-gradient(to bottom, rgba(7,11,15,1), transparent);
+    z-index: 20;
+  }
+  .room-brand {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 17px; font-weight: 600; color: var(--gold); letter-spacing: 3px;
+  }
+  .room-counter {
+    font-size: 10px; color: var(--text-dim); letter-spacing: 2px;
+  }
+  .room-info { text-align: right; }
+  .room-name { font-size: 13px; color: var(--text); }
+  .room-role { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; margin-top: 2px; }
+
+  /* ── Orb ── */
+  .orb-wrap {
+    position: relative;
+    width: 280px; height: 280px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 52px;
+    z-index: 5;
+  }
+
+  .ring {
+    position: absolute; border-radius: 50%;
+    border: 1px solid transparent;
+    animation: spin linear infinite;
+  }
+  .ring-1 {
+    inset: 0;
+    border-color: rgba(201,168,76,.35) transparent rgba(201,168,76,.1) transparent;
+    animation-duration: 9s;
+  }
+  .ring-2 {
+    inset: 18px;
+    border-color: transparent rgba(201,168,76,.2) transparent rgba(201,168,76,.28);
+    animation-duration: 15s; animation-direction: reverse;
+  }
+  .ring-3 {
+    inset: 32px;
+    border-color: rgba(201,168,76,.12) transparent rgba(201,168,76,.22) transparent;
+    animation-duration: 22s;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .orb-core {
+    position: relative; z-index: 3;
+    width: 148px; height: 148px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #1c2840, #070b0f);
+    border: 1px solid rgba(201,168,76,.28);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 60px rgba(201,168,76,.08), inset 0 0 30px rgba(201,168,76,.04);
+    transition: box-shadow .5s, border-color .5s;
+  }
+  .orb-core.speaking {
+    box-shadow: 0 0 100px rgba(201,168,76,.4), inset 0 0 40px rgba(201,168,76,.12);
+    border-color: rgba(201,168,76,.7);
+  }
+  .orb-core.listening {
+    box-shadow: 0 0 100px rgba(39,174,96,.35), inset 0 0 40px rgba(39,174,96,.1);
+    border-color: rgba(39,174,96,.6);
+  }
+  .orb-core.thinking {
+    box-shadow: 0 0 80px rgba(58,133,216,.3), inset 0 0 30px rgba(58,133,216,.08);
+    border-color: rgba(58,133,216,.5);
+  }
+
+  .orb-L {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 58px; font-weight: 700; color: var(--gold);
+    line-height: 1; user-select: none;
+  }
+
+  /* Soundwave (speaking) */
+  .soundwave {
+    position: absolute; bottom: -36px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 3px; align-items: center; height: 30px;
+    opacity: 0; transition: opacity .3s;
+  }
+  .soundwave.on { opacity: 1; }
+  .bar {
+    width: 3px; border-radius: 99px; background: var(--gold);
+    animation: bar-dance .7s ease-in-out infinite;
+  }
+  .bar:nth-child(1){height:5px; animation-delay:0s}
+  .bar:nth-child(2){height:10px;animation-delay:.08s}
+  .bar:nth-child(3){height:18px;animation-delay:.16s}
+  .bar:nth-child(4){height:24px;animation-delay:.24s}
+  .bar:nth-child(5){height:28px;animation-delay:.30s}
+  .bar:nth-child(6){height:24px;animation-delay:.24s}
+  .bar:nth-child(7){height:18px;animation-delay:.16s}
+  .bar:nth-child(8){height:10px;animation-delay:.08s}
+  .bar:nth-child(9){height:5px; animation-delay:0s}
+  @keyframes bar-dance {
+    0%,100%{transform:scaleY(.3)} 50%{transform:scaleY(1)}
+  }
+
+  /* Live mic indicator (listening) */
+  .mic-indicator {
+    position: absolute; bottom: -44px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    opacity: 0; transition: opacity .3s;
+    white-space: nowrap;
+  }
+  .mic-indicator.on { opacity: 1; }
+  .mic-icon-wrap { font-size: 18px; }
+  .mic-ripple {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 0 0 rgba(39,174,96,.5);
+    animation: ripple 1.4s ease-out infinite;
+  }
+  @keyframes ripple {
+    0%  { box-shadow: 0 0 0 0 rgba(39,174,96,.5); }
+    70% { box-shadow: 0 0 0 10px rgba(39,174,96,0); }
+    100%{ box-shadow: 0 0 0 0 rgba(39,174,96,0); }
+  }
+
+  /* ── Status area ── */
+  .status-wrap {
+    text-align: center;
+    max-width: 580px;
+    padding: 0 24px;
+    z-index: 5;
+  }
+
+  .status-tag {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 9px; letter-spacing: 2.5px; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 14px;
+  }
+  .status-pip {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--text-dim);
+  }
+  .status-pip.gold { background: var(--gold); animation: pip-glow 1.6s ease-in-out infinite; }
+  .status-pip.green { background: var(--green); animation: pip-glow 1.2s ease-in-out infinite; }
+  .status-pip.blue { background: var(--blue); animation: pip-glow 2s ease-in-out infinite; }
+  @keyframes pip-glow { 0%,100%{opacity:.3} 50%{opacity:1} }
+
+  .status-msg {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 21px; font-weight: 400; color: var(--text);
+    line-height: 1.55; min-height: 65px;
+  }
+
+  .live-transcript {
+    margin-top: 13px;
+    font-size: 11px; color: var(--text-dim);
+    font-style: italic; min-height: 16px;
+    max-width: 500px; margin-left: auto; margin-right: auto;
+    line-height: 1.5;
+    transition: color .2s;
+  }
+  .live-transcript.final { color: var(--text); }
+
+  /* Progress dots */
+  .progress-dots {
+    display: flex; gap: 6px; justify-content: center;
+    margin-top: 20px;
+  }
+  .pdot {
+    width: 7px; height: 7px; border-radius: 50%;
+    border: 1px solid var(--border);
+    background: transparent;
+    transition: all .3s;
+  }
+  .pdot.done { background: var(--gold-dim); border-color: var(--gold-dim); }
+  .pdot.active { background: var(--gold); border-color: var(--gold); box-shadow: 0 0 8px rgba(201,168,76,.5); }
+
+  /* ── Bottom controls ── */
+  .room-bottom {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    padding: 20px 32px 28px;
+    display: flex; justify-content: center; gap: 12px;
+    background: linear-gradient(to top, rgba(7,11,15,1), transparent);
+    z-index: 20;
+  }
+
+  .ctrl {
+    padding: 9px 22px; border-radius: 99px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text-dim); font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 1px;
+    cursor: pointer; transition: all .2s;
+  }
+  .ctrl:hover:not(:disabled) { border-color: var(--text-dim); color: var(--text); }
+  .ctrl.primary { border-color: rgba(201,168,76,.5); color: var(--gold); }
+  .ctrl.primary:hover:not(:disabled) { background: var(--gold-glow); border-color: var(--gold); }
+  .ctrl.danger { border-color: rgba(231,76,60,.35); color: var(--red); }
+  .ctrl.danger:hover:not(:disabled) { background: rgba(231,76,60,.08); }
+  .ctrl:disabled { opacity: .3; cursor: default; }
+
+  /* ══════════════════════════════════════
+     REPORT SCREEN
+  ══════════════════════════════════════ */
+  #reportScreen {
+    overflow-y: auto;
+    align-items: flex-start;
+    padding: 60px 24px 80px;
+  }
+
+  .report-inner {
+    max-width: 740px; width: 100%; margin: 0 auto;
+  }
+
+  .rpt-head {
+    text-align: center; margin-bottom: 44px;
+  }
+  .rpt-head h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 38px; font-weight: 300; letter-spacing: 6px;
+    text-transform: uppercase; color: var(--text);
+  }
+  .rpt-line {
+    width: 100px; height: 1px; margin: 14px auto;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+  .rpt-date { font-size: 10px; color: var(--text-dim); letter-spacing: 2px; }
+
+  .rpt-hero-card {
+    background: var(--surface);
+    border: 1px solid var(--border); border-radius: 16px;
+    padding: 28px 32px; margin-bottom: 20px;
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+    box-shadow: 0 0 60px rgba(0,0,0,0.4);
+  }
+  .rpt-cname {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 30px; font-weight: 600; color: var(--gold);
+  }
+  .rpt-cmeta { font-size: 11px; color: var(--text-dim); letter-spacing: 1px; margin-top: 5px; }
+
+  .grade-ring {
+    width: 78px; height: 78px; border-radius: 50%;
+    border: 2px solid; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .grade-ring .gl { font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 700; }
+  .grade-ring .gs { font-size: 10px; margin-top: -2px; }
+  .grade-A { border-color: var(--green); color: var(--green); }
+  .grade-B { border-color: var(--blue); color: var(--blue); }
+  .grade-C { border-color: #e67e22; color: #e67e22; }
+  .grade-D { border-color: var(--red); color: var(--red); }
+
+  .rpt-section { margin-bottom: 24px; }
+
+  .rpt-section-head {
+    font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--gold); padding-bottom: 10px;
+    border-bottom: 1px solid var(--border); margin-bottom: 16px;
+  }
+
+  .summary-block {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px; line-height: 1.7; color: var(--text);
+    padding: 18px 22px;
+    border-left: 2px solid var(--gold);
+    background: rgba(201,168,76,0.04);
+    border-radius: 0 8px 8px 0;
+  }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media(max-width:520px){ .two-col { grid-template-columns: 1fr; } }
+
+  .tag-wrap { display: flex; flex-wrap: wrap; gap: 7px; }
+  .tag {
+    padding: 5px 13px; border-radius: 99px; font-size: 11px;
+    border: 1px solid var(--border); color: var(--text-dim);
+  }
+  .tag.s { border-color: rgba(39,174,96,.4); color: var(--green); background: rgba(39,174,96,.05); }
+  .tag.g { border-color: rgba(230,180,30,.4); color: #e8b020; background: rgba(230,180,30,.05); }
+
+  .qa-row { margin-bottom: 22px; }
+  .qa-q {
+    display: flex; gap: 10px; font-size: 13px; font-weight: 500;
+    color: var(--text); margin-bottom: 7px; line-height: 1.5;
+  }
+  .qa-n { color: var(--gold-dim); flex-shrink: 0; }
+  .qa-a {
+    font-size: 11px; color: var(--text-dim);
+    padding: 10px 14px; border: 1px solid var(--border);
+    border-radius: 7px; background: rgba(255,255,255,.02);
+    line-height: 1.7; font-style: italic; margin-bottom: 7px;
+  }
+  .qa-eval {
+    font-size: 11px; color: #5a9cd8;
+    padding: 7px 12px; border-radius: 6px;
+    background: rgba(58,133,216,.06);
+    border-left: 2px solid rgba(58,133,216,.35);
+  }
+  .stars { color: var(--gold); font-size: 12px; margin-right: 5px; }
+
+  .verdict {
+    padding: 22px 28px; border-radius: 12px; border: 1px solid;
+    text-align: center;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px; font-weight: 600;
+  }
+  .verdict-sub {
+    font-size: 12px; font-family: 'DM Mono', monospace;
+    font-weight: 400; margin-top: 10px; line-height: 1.6;
+    color: inherit; opacity: .8;
+  }
+  .v-HIRE    { border-color: rgba(39,174,96,.5); color: var(--green); background: rgba(39,174,96,.05); }
+  .v-CONSIDER{ border-color: rgba(230,180,30,.5); color: #e8b020; background: rgba(230,180,30,.05); }
+  .v-REJECT  { border-color: rgba(231,76,60,.5); color: var(--red); background: rgba(231,76,60,.05); }
+
+  .rpt-actions {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    justify-content: center; margin-top: 40px;
+  }
+  .rpt-btn {
+    padding: 11px 26px; border-radius: 8px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text-dim); font-family: 'DM Mono', monospace;
+    font-size: 12px; letter-spacing: 1px; cursor: pointer; transition: all .2s;
+  }
+  .rpt-btn.primary { border-color: var(--gold); color: var(--gold); }
+  .rpt-btn.primary:hover { background: var(--gold-glow); }
+  .rpt-btn:hover { border-color: var(--text-dim); color: var(--text); }
+
+  .hidden { display: none !important; }
+  .fade-in { animation: fadeIn .5s ease forwards; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+</style>
+</head>
+<body>
+
+<!-- ══ SETUP SCREEN ══ -->
+<div class="screen" id="setupScreen">
+  <div class="setup-card fade-in">
+    <div class="brand">
+      <div class="brand-orb"><span>L</span></div>
+      <h1>Latino</h1>
+      <p>AI Voice Interview System · Schools & KG Network</p>
+    </div>
+
+    <div class="field">
+      <label>Candidate Full Name</label>
+      <input type="text" id="sName" placeholder="e.g. Sarah Al-Hassan" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Years of Experience</label>
+      <input type="text" id="sExp" placeholder="e.g. 4 years" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Role Applied For</label>
+      <select id="sRole">
+        <option value="">— Select a role —</option>
+        <option value="Teacher">Teacher</option>
+        <option value="Educator / KG Specialist">Educator / KG Specialist</option>
+        <option value="Administrative Staff">Administrative Staff</option>
+        <option value="Cluster Leader">Cluster Leader</option>
+      </select>
+    </div>
+
+    <div class="setup-error" id="setupErr"></div>
+    <button class="btn-begin" id="btnBegin" onclick="beginInterview()"><span>BEGIN INTERVIEW</span></button>
+  </div>
+</div>
+
+<!-- ══ INTERVIEW ROOM ══ -->
+<div class="screen hidden" id="roomScreen">
+  <div class="room-top">
+    <div class="room-brand">LATINO</div>
+    <div class="room-counter" id="roomCounter">Question 1 of 8</div>
+    <div class="room-info">
+      <div class="room-name" id="roomName">—</div>
+      <div class="room-role" id="roomRole">—</div>
+    </div>
+  </div>
+
+  <!-- Orb -->
+  <div class="orb-wrap">
+    <div class="ring ring-1"></div>
+    <div class="ring ring-2"></div>
+    <div class="ring ring-3"></div>
+    <div class="orb-core" id="orbCore">
+      <div class="orb-L">L</div>
+    </div>
+    <div class="soundwave" id="soundwave">
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+    </div>
+    <div class="mic-indicator" id="micIndicator">
+      <div class="mic-icon-wrap">🎙</div>
+      <div class="mic-ripple"></div>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="status-wrap">
+    <div class="status-tag">
+      <div class="status-pip gold" id="statusPip"></div>
+      <span id="statusTag">INITIALIZING</span>
+    </div>
+    <div class="status-msg" id="statusMsg">Preparing the interview room…</div>
+    <div class="live-transcript" id="liveTranscript"></div>
+    <div class="progress-dots" id="progressDots"></div>
+  </div>
+
+  <div class="room-bottom">
+    <button class="ctrl" id="btnSkip" onclick="skipQuestion()" disabled>SKIP</button>
+    <button class="ctrl primary" id="btnNext" onclick="doneAnswering()" disabled>DONE ANSWERING →</button>
+    <button class="ctrl danger" onclick="endEarly()">END INTERVIEW</button>
+  </div>
+</div>
+
+<!-- ══ REPORT SCREEN ══ -->
+<div class="screen hidden" id="reportScreen">
+  <div class="report-inner">
+    <div class="rpt-head">
+      <h1>Interview Report</h1>
+      <div class="rpt-line"></div>
+      <div class="rpt-date" id="rptDate"></div>
+    </div>
+    <div id="reportBody"></div>
+    <div class="rpt-actions">
+      <button class="rpt-btn primary" onclick="newInterview()">+ New Candidate</button>
+      <button class="rpt-btn" onclick="window.print()">Print Report</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════
+const S = {
+  name: '', exp: '', role: '',
+  questions: [],
+  answers: [],
+  currentQ: 0,
+  phase: 'idle',   // idle | speaking | listening | thinking
+  ws: null,
+  mediaRecorder: null,
+  audioChunks: [],
+  currentAudio: null,
+};
+
+// ═══════════════════════════════════════════════
+//  SETUP
+// ═══════════════════════════════════════════════
+async function beginInterview() {
+  const name = document.getElementById('sName').value.trim();
+  const exp  = document.getElementById('sExp').value.trim();
+  const role = document.getElementById('sRole').value;
+  const err  = document.getElementById('setupErr');
+
+  if (!name || !exp || !role) { err.textContent = 'Please complete all fields.'; return; }
+  err.textContent = '';
+
+  document.getElementById('btnBegin').disabled = true;
+
+  // Fetch questions
+  const res = await fetch(`/api/questions/${encodeURIComponent(role)}`);
+  S.questions = await res.json();
+  S.name = name; S.exp = exp; S.role = role;
+  S.answers = Array(S.questions.length).fill('');
+  S.currentQ = 0;
+
+  document.getElementById('roomName').textContent = name;
+  document.getElementById('roomRole').textContent = role + ' · ' + exp;
+  buildProgressDots();
+  showScreen('roomScreen');
+
+  // Short pause then greet
+  setTimeout(doIntro, 700);
+}
+
+// ═══════════════════════════════════════════════
+//  SCREENS
+// ═══════════════════════════════════════════════
+function showScreen(id) {
+  ['setupScreen','roomScreen','reportScreen'].forEach(s => {
+    document.getElementById(s).classList.toggle('hidden', s !== id);
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  PROGRESS DOTS
+// ═══════════════════════════════════════════════
+function buildProgressDots() {
+  const wrap = document.getElementById('progressDots');
+  wrap.innerHTML = S.questions.map((_,i) =>
+    `<div class="pdot" id="pd${i}"></div>`
+  ).join('');
+  refreshDots();
+}
+
+function refreshDots() {
+  S.questions.forEach((_,i) => {
+    const d = document.getElementById('pd'+i);
+    if (!d) return;
+    d.className = 'pdot' + (i < S.currentQ ? ' done' : i === S.currentQ ? ' active' : '');
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  ELEVENLABS TTS — speak via server
+// ═══════════════════════════════════════════════
+async function speak(text) {
+  return new Promise(async (resolve) => {
+    setPhase('speaking');
+
+    try {
+      const res = await fetch('/api/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!res.ok) { resolve(); return; }
+
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      S.currentAudio = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        S.currentAudio = null;
+        resolve();
+      };
+      audio.onerror = () => { resolve(); };
+      audio.play();
+    } catch(e) {
+      console.error('TTS error:', e);
+      resolve();
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  DEEPGRAM STT — record then transcribe
+// ═══════════════════════════════════════════════
+async function startListening() {
+  setPhase('listening');
+  S.audioChunks = [];
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    S.mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+    S.mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) S.audioChunks.push(e.data);
+    };
+
+    S.mediaRecorder.start(250);
+    document.getElementById('btnNext').disabled = false;
+    document.getElementById('btnSkip').disabled = false;
+  } catch(e) {
+    setStatus('gold', 'MIC ERROR', 'Could not access microphone: ' + e.message);
+  }
+}
+
+async function stopListeningAndTranscribe() {
+  return new Promise((resolve) => {
+    if (!S.mediaRecorder || S.mediaRecorder.state === 'inactive') { resolve(''); return; }
+
+    S.mediaRecorder.onstop = async () => {
+      // Stop mic tracks
+      S.mediaRecorder.stream.getTracks().forEach(t => t.stop());
+
+      const blob = new Blob(S.audioChunks, { type: 'audio/webm' });
+      if (blob.size < 500) { resolve(''); return; }
+
+      const form = new FormData();
+      form.append('audio', blob, 'answer.webm');
+
+      setPhase('thinking');
+      setStatus('blue', 'TRANSCRIBING', 'Processing your answer…');
+
+      try {
+        const res = await fetch('/api/transcribe', { method: 'POST', body: form });
+        const data = await res.json();
+        resolve(data.transcript || '');
+      } catch(e) {
+        console.error('Transcribe error:', e);
+        resolve('');
+      }
+    };
+
+    S.mediaRecorder.stop();
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  INTERVIEW FLOW
+// ═══════════════════════════════════════════════
+async function doIntro() {
+  const greet = timeOfDay();
+  const txt = `Good ${greet}, ${S.name}. My name is Latino, and I'll be conducting your interview today for the ${S.role} position. We have ${S.questions.length} questions. After I ask each question, please speak your answer naturally. When you're finished, press the Done Answering button. Let's begin.`;
+  setStatus('gold', 'SPEAKING', txt);
+  await speak(txt);
+  await askQuestion();
+}
+
+async function askQuestion() {
+  const { questions, currentQ } = S;
+  const q = questions[currentQ];
+  updateCounter();
+  refreshDots();
+
+  const num = currentQ === 0 ? 'First question.' : `Question ${currentQ + 1}.`;
+  const full = `${num} ${q.q}`;
+
+  setStatus('gold', `QUESTION ${currentQ+1} OF ${questions.length}`, full);
+  document.getElementById('liveTranscript').textContent = '';
+  document.getElementById('btnNext').disabled = true;
+  document.getElementById('btnSkip').disabled = true;
+
+  await speak(full);
+  await startListening();
+  setStatus('green', 'LISTENING', 'Your answer is being recorded…');
+}
+
+async function doneAnswering() {
+  document.getElementById('btnNext').disabled = true;
+  document.getElementById('btnSkip').disabled = true;
+
+  const transcript = await stopListeningAndTranscribe();
+  S.answers[S.currentQ] = transcript || '[No answer recorded]';
+  document.getElementById('liveTranscript').textContent =
+    transcript ? `"${transcript}"` : '';
+
+  if (S.currentQ >= S.questions.length - 1) {
+    await doOutro();
+    return;
+  }
+
+  // Bridge
+  const bridges = ['Thank you.', 'Understood.', 'I appreciate that.', 'Good.', 'Thank you for sharing that.'];
+  const bridge  = bridges[Math.floor(Math.random() * bridges.length)];
+  setStatus('gold', 'TRANSITIONING', bridge);
+  await speak(bridge);
+
+  S.currentQ++;
+  await askQuestion();
+}
+
+async function skipQuestion() {
+  document.getElementById('btnNext').disabled = true;
+  document.getElementById('btnSkip').disabled = true;
+  if (S.mediaRecorder && S.mediaRecorder.state !== 'inactive') {
+    S.mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    S.mediaRecorder.stop();
+  }
+  S.answers[S.currentQ] = '[Skipped]';
+
+  if (S.currentQ >= S.questions.length - 1) { await doOutro(); return; }
+  S.currentQ++;
+  await askQuestion();
+}
+
+async function doOutro() {
+  document.getElementById('btnNext').disabled = true;
+  document.getElementById('btnSkip').disabled = true;
+  refreshDots();
+
+  const outro = `Thank you, ${S.name}. That concludes our interview. You've answered all ${S.questions.length} questions very well. We will review your responses and get back to you shortly. Have a great day.`;
+  setStatus('gold', 'CLOSING', outro);
+  await speak(outro);
+  setStatus('blue', 'EVALUATING', 'Analyzing your interview responses…');
+  setPhase('thinking');
+  await runEvaluation();
+}
+
+async function endEarly() {
+  if (S.currentAudio) { S.currentAudio.pause(); S.currentAudio = null; }
+  if (S.mediaRecorder && S.mediaRecorder.state !== 'inactive') {
+    S.mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    try { S.mediaRecorder.stop(); } catch {}
+  }
+  // Fill rest
+  for (let i = S.currentQ; i < S.questions.length; i++) {
+    if (!S.answers[i]) S.answers[i] = '[Not reached]';
+  }
+  setStatus('blue', 'EVALUATING', 'Preparing evaluation report…');
+  setPhase('thinking');
+  document.getElementById('btnNext').disabled = true;
+  document.getElementById('btnSkip').disabled = true;
+  await runEvaluation();
+}
+
+// ═══════════════════════════════════════════════
+//  EVALUATE WITH CLAUDE
+// ═══════════════════════════════════════════════
+async function runEvaluation() {
+  try {
+    const res = await fetch('/api/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: S.name, exp: S.exp, role: S.role,
+        questions: S.questions, answers: S.answers,
+      }),
+    });
+    const report = await res.json();
+    renderReport(report);
+    showScreen('reportScreen');
+  } catch(e) {
+    setStatus('gold', 'ERROR', 'Evaluation failed: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  RENDER REPORT
+// ═══════════════════════════════════════════════
+function renderReport(r) {
+  document.getElementById('rptDate').textContent =
+    new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' }).toUpperCase();
+
+  if (r.error) {
+    document.getElementById('reportBody').innerHTML =
+      `<p style="color:var(--red);text-align:center;padding:40px;">${r.error}</p>`;
+    return;
+  }
+
+  const { overallScore, grade, summary, questionEvals, strengths, areasForGrowth, recommendation, recommendationReason } = r;
+
+  const qaHTML = S.questions.map((q, i) => {
+    const ev = (questionEvals||[])[i] || {};
+    const stars = '★'.repeat(ev.score||0) + '☆'.repeat(5-(ev.score||0));
+    return `<div class="qa-row">
+      <div class="qa-q"><span class="qa-n">Q${i+1}</span>${q.q}</div>
+      <div class="qa-a">${S.answers[i] || '(No answer)'}</div>
+      <div class="qa-eval"><span class="stars">${stars}</span>${ev.evaluation||'—'}</div>
+    </div>`;
+  }).join('');
+
+  const strTags  = (strengths||[]).map(s=>`<span class="tag s">${s}</span>`).join('');
+  const growTags = (areasForGrowth||[]).map(g=>`<span class="tag g">${g}</span>`).join('');
+
+  const recLabel = { HIRE:'✦ Recommended to Hire', CONSIDER:'◈ Consider with Reservations', REJECT:'✕ Not Recommended' }[recommendation] || recommendation;
+
+  document.getElementById('reportBody').innerHTML = `
+    <div class="rpt-hero-card fade-in">
+      <div>
+        <div class="rpt-cname">${S.name}</div>
+        <div class="rpt-cmeta">${S.role.toUpperCase()} · ${S.exp.toUpperCase()}</div>
+      </div>
+      <div class="grade-ring grade-${grade}">
+        <div class="gl">${grade}</div>
+        <div class="gs">${overallScore}/100</div>
+      </div>
+    </div>
+
+    <div class="rpt-section fade-in">
+      <div class="rpt-section-head">Executive Summary</div>
+      <div class="summary-block">${summary}</div>
+    </div>
+
+    <div class="rpt-section fade-in">
+      <div class="rpt-section-head">Strengths & Growth Areas</div>
+      <div class="two-col">
+        <div>
+          <div style="font-size:9px;letter-spacing:2px;color:var(--green);margin-bottom:10px;">STRENGTHS</div>
+          <div class="tag-wrap">${strTags}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;letter-spacing:2px;color:#e8b020;margin-bottom:10px;">AREAS FOR GROWTH</div>
+          <div class="tag-wrap">${growTags}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rpt-section fade-in">
+      <div class="rpt-section-head">Question-by-Question Evaluation</div>
+      ${qaHTML}
+    </div>
+
+    <div class="rpt-section fade-in">
+      <div class="rpt-section-head">Final Recommendation</div>
+      <div class="verdict v-${recommendation}">
+        ${recLabel}
+        <div class="verdict-sub">${recommendationReason}</div>
+      </div>
+    </div>
+  `;
+}
+
+function newInterview() {
+  S.name=''; S.exp=''; S.role=''; S.questions=[]; S.answers=[];
+  S.currentQ=0; S.phase='idle';
+  document.getElementById('sName').value='';
+  document.getElementById('sExp').value='';
+  document.getElementById('sRole').value='';
+  document.getElementById('btnBegin').disabled=false;
+  document.getElementById('setupErr').textContent='';
+  showScreen('setupScreen');
+}
+
+// ═══════════════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════════════
+function setPhase(phase) {
+  S.phase = phase;
+  const orb = document.getElementById('orbCore');
+  orb.className = 'orb-core' + (phase !== 'idle' ? ' ' + phase : '');
+  document.getElementById('soundwave').classList.toggle('on', phase === 'speaking');
+  document.getElementById('micIndicator').classList.toggle('on', phase === 'listening');
+}
+
+function setStatus(pip, tag, msg) {
+  const p = document.getElementById('statusPip');
+  p.className = 'status-pip ' + pip;
+  document.getElementById('statusTag').textContent = tag;
+  document.getElementById('statusMsg').textContent  = msg;
+}
+
+function updateCounter() {
+  document.getElementById('roomCounter').textContent =
+    `Question ${S.currentQ+1} of ${S.questions.length}`;
+}
+
+function timeOfDay() {
+  const h = new Date().getHours();
+  return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+}
+</script>
+</body>
+</html>
