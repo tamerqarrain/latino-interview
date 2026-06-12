@@ -333,6 +333,57 @@
   .hidden { display: none !important; }
   .fade-in { animation: fadeIn .5s ease forwards; }
   @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+  /* ════════════════════════════════════════
+     MOBILE RESPONSIVE
+  ════════════════════════════════════════ */
+  @media (max-width: 600px) {
+    /* Setup */
+    .setup-card { width: 100%; max-width: 100%; margin: 0 14px; padding: 36px 26px; border-radius: 18px; }
+    .brand h1 { font-size: 26px; }
+    .brand-orb { width: 68px; height: 68px; }
+
+    /* Interview room */
+    .room-top { padding: 12px 16px; flex-wrap: wrap; gap: 6px; }
+    .room-brand { font-size: 14px; }
+    .room-counter { font-size: 11px; order: 3; width: 100%; text-align: center; }
+    .room-name { font-size: 12px; }
+    .room-role { font-size: 10px; }
+
+    .orb-wrap { width: 200px; height: 200px; margin-bottom: 60px; }
+    .orb-core { width: 110px; height: 110px; }
+    .orb-L { font-size: 42px; }
+
+    .status-wrap { padding: 0 18px; }
+    .status-msg { font-size: 17px; min-height: 80px; }
+    .question-box { font-size: 15px; padding: 14px 16px; }
+
+    .room-bottom { padding: 14px 14px 20px; gap: 8px; }
+    .ctrl { padding: 9px 16px; font-size: 13px; }
+
+    #micCanvas { width: 160px; }
+
+    /* Report */
+    #reportScreen { padding: 36px 14px 60px; }
+    .rpt-head h1 { font-size: 28px; }
+    .rpt-hero-card { flex-direction: column; align-items: flex-start; padding: 22px; gap: 18px; }
+    .rpt-cname { font-size: 24px; }
+    .grade-ring { width: 66px; height: 66px; align-self: center; }
+    .grade-ring .gl { font-size: 26px; }
+    .summary-block { font-size: 15px; padding: 16px 18px; }
+    .two-col { grid-template-columns: 1fr; gap: 18px; }
+    .qa-q { font-size: 13px; }
+    .qa-a, .qa-eval { font-size: 12px; }
+    .verdict { font-size: 19px; padding: 18px 20px; }
+    .verdict-sub { font-size: 13px; }
+    .rpt-actions { flex-direction: column; }
+    .rpt-btn { width: 100%; }
+  }
+
+  @media (max-width: 380px) {
+    .orb-wrap { width: 170px; height: 170px; }
+    .orb-core { width: 96px; height: 96px; }
+    .ctrl { padding: 8px 12px; font-size: 12px; }
+  }
 </style>
 </head>
 <body>
@@ -464,7 +515,7 @@ const S = {
   mediaRecorder: null, audioChunks: [],
   currentAudio: null,
   readTimer: null, readLeft: READ_SECONDS, readOnComplete: null,
-  audioCtx: null, analyser: null, vizFrame: null,
+  audioCtx: null, analyser: null, vizFrame: null, recMime: '',
 };
 
 const AR = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
@@ -607,8 +658,26 @@ async function startRecording() {
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    S.mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-    S.mediaRecorder.ondataavailable = e => { if (e.data.size > 0) S.audioChunks.push(e.data); };
+
+    // Pick a mimeType the device actually supports (mobile Safari/Chrome vary)
+    const candidates = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/mp4',
+      'audio/aac',
+      'audio/ogg;codecs=opus',
+      'audio/ogg',
+    ];
+    let mime = '';
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported) {
+      mime = candidates.find(c => MediaRecorder.isTypeSupported(c)) || '';
+    }
+    S.recMime = mime || 'audio/webm';
+    S.mediaRecorder = mime
+      ? new MediaRecorder(stream, { mimeType: mime })
+      : new MediaRecorder(stream);
+
+    S.mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) S.audioChunks.push(e.data); };
     S.mediaRecorder.start(250);
     startVisualizer(stream); // live waveform reacts to candidate's voice
   } catch(e) {
@@ -676,11 +745,14 @@ async function stopRecordingAndTranscribe() {
     S.mediaRecorder.onstop = async () => {
       stopVisualizer();
       S.mediaRecorder.stream.getTracks().forEach(t => t.stop());
-      const blob = new Blob(S.audioChunks, { type: 'audio/webm' });
+      const mime = S.recMime || 'audio/webm';
+      const blob = new Blob(S.audioChunks, { type: mime });
       if (blob.size < 500) { resolve(''); return; }
 
+      const ext  = mime.includes('mp4') ? 'mp4' : mime.includes('ogg') ? 'ogg' : mime.includes('aac') ? 'aac' : 'webm';
       const form = new FormData();
-      form.append('audio', blob, 'answer.webm');
+      form.append('audio', blob, 'answer.' + ext);
+      form.append('mime', mime);
 
       setPhase('thinking');
       setStatus('blue', 'جارٍ تحويل الصوت', 'معالجة إجابتك…');
@@ -750,8 +822,18 @@ async function doneAnswering() {
 
   // Stop recording and transcribe
   const transcript = await stopRecordingAndTranscribe();
-  S.answers[S.currentQ] = transcript || '[لم تُسجَّل إجابة]';
-  document.getElementById('liveTranscript').textContent = transcript ? `"${transcript}"` : '';
+
+  // If nothing was captured, let the candidate retry instead of silently failing
+  if (!transcript || transcript.trim().length < 2) {
+    setStatus('purple', 'لم نسمع إجابة', 'لم يُلتقط أي صوت. سيبدأ التسجيل من جديد — تحدّث الآن.');
+    document.getElementById('liveTranscript').textContent = '';
+    await new Promise(r => setTimeout(r, 1500));
+    await startRecording();
+    return; // candidate answers again; pressing "انتهيت" re-enters this function
+  }
+
+  S.answers[S.currentQ] = transcript;
+  document.getElementById('liveTranscript').textContent = `"${transcript}"`;
 
   if (S.currentQ >= S.questions.length - 1) {
     await doOutro();

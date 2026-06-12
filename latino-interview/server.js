@@ -105,6 +105,8 @@ app.post('/api/speak', async (req, res) => {
 app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No audio' });
 
+  const contentType = req.body.mime || req.file.mimetype || 'audio/webm';
+
   try {
     const response = await fetch(
       'https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&language=ar',
@@ -112,7 +114,7 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
         method:  'POST',
         headers: {
           'Authorization': `Token ${DEEPGRAM_API_KEY}`,
-          'Content-Type':  req.file.mimetype || 'audio/webm',
+          'Content-Type':  contentType,
         },
         body: req.file.buffer,
       }
@@ -127,6 +129,7 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
     const data = await response.json();
     const transcript =
       data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+    console.log(`Transcribed (${contentType}, ${req.file.buffer.length}b): "${transcript.slice(0,60)}"`);
     res.json({ transcript });
 
   } catch (err) {
