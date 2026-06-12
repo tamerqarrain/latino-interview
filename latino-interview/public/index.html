@@ -267,6 +267,8 @@
   .ctrl:hover:not(:disabled) { border-color: var(--text-dim); color: var(--text); }
   .ctrl.primary { border-color: rgba(39,174,96,.5); color: var(--green); }
   .ctrl.primary:hover:not(:disabled) { background: rgba(39,174,96,0.08); border-color: var(--green); }
+  .ctrl.answer-now { border-color: var(--purple); color: #b06fd0; background: rgba(142,68,173,0.08); font-weight: 700; }
+  .ctrl.answer-now:hover { background: rgba(142,68,173,0.18); border-color: #b06fd0; }
   .ctrl.danger  { border-color: rgba(231,76,60,.35); color: var(--red); }
   .ctrl.danger:hover:not(:disabled) { background: rgba(231,76,60,.08); }
   .ctrl:disabled { opacity: .3; cursor: default; }
@@ -399,7 +401,7 @@
         </svg>
         <div class="cd-num" id="cdNum">60</div>
       </div>
-      <div class="cd-label">ثانية للتفكير</div>
+      <div class="cd-label">ثوانٍ للتفكير</div>
     </div>
 
     <!-- Mic: visible during unlimited answer recording -->
@@ -423,6 +425,7 @@
 
   <div class="room-bottom">
     <button class="ctrl danger" onclick="endEarly()">إنهاء المقابلة</button>
+    <button class="ctrl answer-now" id="btnAnswerNow" onclick="answerNow()" style="display:none;">🎙 ابدأ الإجابة الآن</button>
     <button class="ctrl primary" id="btnNext" onclick="doneAnswering()" disabled>✓ انتهيت من الإجابة</button>
     <button class="ctrl" id="btnSkip" onclick="skipQuestion()" disabled>تخطي</button>
   </div>
@@ -448,7 +451,7 @@
 // ═══════════════════════════════════════════════
 //  CONSTANTS
 // ═══════════════════════════════════════════════
-const READ_SECONDS = 60;   // thinking/reading time after question is spoken
+const READ_SECONDS = 10;   // thinking/reading time after question is spoken
 const CIRC = 2 * Math.PI * 26; // 163.4 — SVG circle circumference
 
 // ═══════════════════════════════════════════════
@@ -460,7 +463,7 @@ const S = {
   currentQ: 0, phase: 'idle',
   mediaRecorder: null, audioChunks: [],
   currentAudio: null,
-  readTimer: null, readLeft: READ_SECONDS,
+  readTimer: null, readLeft: READ_SECONDS, readOnComplete: null,
   audioCtx: null, analyser: null, vizFrame: null,
 };
 
@@ -544,6 +547,7 @@ async function speak(text) {
 // ═══════════════════════════════════════════════
 function startReadCountdown(onComplete) {
   S.readLeft = READ_SECONDS;
+  S.readOnComplete = onComplete;
   const bar = document.getElementById('cdBar');
   const num = document.getElementById('cdNum');
   const wrap = document.getElementById('countdownWrap');
@@ -554,10 +558,11 @@ function startReadCountdown(onComplete) {
   wrap.classList.add('on');
 
   setPhase('reading');
-  setStatus('purple', 'وقت التفكير', 'لديك دقيقة للتفكير في إجابتك. اضغط "انتهيت" متى شئت.');
+  setStatus('purple', 'وقت التفكير', 'لديك ١٠ ثوانٍ للتفكير، أو اضغط "ابدأ الإجابة الآن".');
 
-  // Enable "done" and "skip" during reading too
-  document.getElementById('btnNext').disabled = false;
+  // Show the "answer now" button; allow skip too. Hide "done" until recording starts.
+  document.getElementById('btnAnswerNow').style.display = '';
+  document.getElementById('btnNext').disabled = true;
   document.getElementById('btnSkip').disabled = false;
 
   S.readTimer = setInterval(() => {
@@ -573,6 +578,15 @@ function startReadCountdown(onComplete) {
   }, 1000);
 }
 
+// Candidate chose to start answering immediately — skip remaining think time
+function answerNow() {
+  if (S.phase !== 'reading') return;
+  stopReadCountdown();
+  const cb = S.readOnComplete;
+  S.readOnComplete = null;
+  if (cb) cb(); // starts recording
+}
+
 function stopReadCountdown() {
   if (S.readTimer) { clearInterval(S.readTimer); S.readTimer = null; }
   document.getElementById('countdownWrap').classList.remove('on');
@@ -585,6 +599,11 @@ async function startRecording() {
   setPhase('listening');
   setStatus('green', 'يرجى الإجابة الآن', 'التسجيل جارٍ… اضغط "انتهيت من الإجابة" عند الانتهاء.');
   S.audioChunks = [];
+
+  // Switch buttons: hide "answer now", enable "done"
+  document.getElementById('btnAnswerNow').style.display = 'none';
+  document.getElementById('btnNext').disabled = false;
+  document.getElementById('btnSkip').disabled = false;
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -690,7 +709,7 @@ async function stopRecordingAndTranscribe() {
 //  4. Deepgram transcribes → next question
 // ═══════════════════════════════════════════════
 async function doIntro() {
-  const txt = `${timeOfDay()}، ${S.name}. أَنَا لَاتِينُو، وَسَأُجْرِي مَعَكَ مُقَابَلَةَ الْعَمَلِ الْيَوْمَ لِوَظِيفَةِ ${S.role}. لَدَيْنَا ${toAr(S.questions.length)} أَسْئِلَةٍ. سَأَقْرَأُ كُلَّ سُؤَالٍ بِصَوْتٍ عَالٍ، ثُمَّ تَأْخُذُ دَقِيقَةً لِلتَّفْكِيرِ، وَبَعْدَهَا تُجِيبُ بِحُرِّيَّةٍ بِدُونِ قُيُودٍ عَلَى الْوَقْتِ. عِنْدَمَا تَنْتَهِي مِنَ الْإِجَابَةِ اضْغَطِ الزِّرَّ. لِنَبْدَأْ.`;
+  const txt = `${timeOfDay()}، ${S.name}. أَنَا لَاتِينُو، وَسَأُجْرِي مَعَكَ مُقَابَلَةَ الْعَمَلِ الْيَوْمَ لِوَظِيفَةِ ${S.role}. لَدَيْنَا ${toAr(S.questions.length)} أَسْئِلَةٍ. سَأَقْرَأُ كُلَّ سُؤَالٍ بِصَوْتٍ عَالٍ، ثُمَّ تَأْخُذُ عَشْرَ ثَوَانٍ لِلتَّفْكِيرِ، أَوْ تَضْغَطُ زِرَّ ابْدَأِ الْإِجَابَةَ الْآنَ. بَعْدَهَا تُجِيبُ بِحُرِّيَّةٍ بِدُونِ قُيُودٍ عَلَى الْوَقْتِ. عِنْدَمَا تَنْتَهِي اضْغَطْ زِرَّ انْتَهَيْتُ. لِنَبْدَأْ.`;
   setStatus('gold', 'الترحيب', txt);
   await speak(txt);
   await runQuestion();
@@ -723,19 +742,11 @@ async function runQuestion() {
 }
 
 async function doneAnswering() {
-  // Could be called during reading phase OR during recording phase
   stopReadCountdown();
+  document.getElementById('btnAnswerNow').style.display = 'none';
   document.getElementById('btnNext').disabled = true;
   document.getElementById('btnSkip').disabled = true;
   hideQuestionBox();
-
-  // If we're still in reading phase (recording hasn't started yet), start + immediately stop
-  if (S.phase === 'reading') {
-    // Start recording briefly then stop — candidate chose to skip the thinking time
-    await startRecording();
-    // Small buffer to capture anything they might say
-    await new Promise(r => setTimeout(r, 800));
-  }
 
   // Stop recording and transcribe
   const transcript = await stopRecordingAndTranscribe();
@@ -759,6 +770,7 @@ async function doneAnswering() {
 
 async function skipQuestion() {
   stopReadCountdown();
+  document.getElementById('btnAnswerNow').style.display = 'none';
   document.getElementById('btnNext').disabled = true;
   document.getElementById('btnSkip').disabled = true;
   hideQuestionBox();
@@ -801,6 +813,7 @@ async function endEarly() {
   for (let i = S.currentQ; i < S.questions.length; i++) {
     if (!S.answers[i]) S.answers[i] = '[لم يُطرح]';
   }
+  document.getElementById('btnAnswerNow').style.display = 'none';
   document.getElementById('btnNext').disabled = true;
   document.getElementById('btnSkip').disabled = true;
   hideQuestionBox();
