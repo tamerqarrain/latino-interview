@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>لاتينو — نظام المقابلات الصوتية</title>
+<title>لاتينو — المقابلة المبدئية</title>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;900&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -320,6 +320,7 @@
 
   .verdict { padding: 22px 28px; border-radius: 12px; border: 1px solid; text-align: center; font-size: 22px; font-weight: 900; }
   .verdict-sub { font-size: 14px; font-weight: 400; margin-top: 10px; line-height: 1.7; opacity: .85; }
+  .v-PASS     { border-color: rgba(39,174,96,.5); color: var(--green); background: rgba(39,174,96,.05); }
   .v-HIRE     { border-color: rgba(39,174,96,.5); color: var(--green); background: rgba(39,174,96,.05); }
   .v-CONSIDER { border-color: rgba(230,180,30,.5); color: #e8b020;     background: rgba(230,180,30,.05); }
   .v-REJECT   { border-color: rgba(231,76,60,.5);  color: var(--red);  background: rgba(231,76,60,.05); }
@@ -394,7 +395,7 @@
     <div class="brand">
       <div class="brand-orb"><span>L</span></div>
       <h1>لاتينو</h1>
-      <p>نظام المقابلات الصوتية الذكي · شبكة المدارس ورياض الأطفال</p>
+      <p>المقابلة المبدئية لفرز المرشحين · شبكة المدارس ورياض الأطفال</p>
     </div>
     <div class="field">
       <label>اسم المرشح كاملاً</label>
@@ -408,10 +409,10 @@
       <label>الوظيفة المتقدم إليها</label>
       <select id="sRole">
         <option value="">— اختر الوظيفة —</option>
-        <option value="معلم">معلم</option>
-        <option value="معلم روضة / أخصائي تعليم مبكر">معلم روضة / أخصائي تعليم مبكر</option>
-        <option value="موظف إداري">موظف إداري</option>
-        <option value="قائد مجموعة مدارس">قائد مجموعة مدارس</option>
+        <option value="معلم رياض أطفال">معلم رياض أطفال</option>
+        <option value="معلّم صف 1-3">معلّم صف ١-٣</option>
+        <option value="معلّم صف 4-10">معلّم صف ٤-١٠</option>
+        <option value="معلّم صف 11-12">معلّم صف ١١-١٢</option>
       </select>
     </div>
     <div class="setup-error" id="setupErr"></div>
@@ -486,7 +487,7 @@
 <div class="screen hidden" id="reportScreen">
   <div class="report-inner">
     <div class="rpt-head">
-      <h1>تقرير المقابلة</h1>
+      <h1>تقرير المقابلة المبدئية</h1>
       <div class="rpt-line"></div>
       <div class="rpt-date" id="rptDate"></div>
     </div>
@@ -540,7 +541,7 @@ async function beginInterview() {
   S.currentQ = 0;
 
   document.getElementById('roomName').textContent = name;
-  document.getElementById('roomRole').textContent = role + ' · ' + exp;
+  document.getElementById('roomRole').textContent = toAr(role) + ' · ' + exp;
   buildProgressDots();
   showScreen('roomScreen');
   setTimeout(doIntro, 700);
@@ -781,7 +782,7 @@ async function stopRecordingAndTranscribe() {
 //  4. Deepgram transcribes → next question
 // ═══════════════════════════════════════════════
 async function doIntro() {
-  const txt = `${timeOfDay()}، ${S.name}. أَنَا لَاتِينُو، وَسَأُجْرِي مَعَكَ مُقَابَلَةَ الْعَمَلِ الْيَوْمَ لِوَظِيفَةِ ${S.role}. لَدَيْنَا ${toAr(S.questions.length)} أَسْئِلَةٍ. سَأَقْرَأُ كُلَّ سُؤَالٍ بِصَوْتٍ عَالٍ، ثُمَّ تَأْخُذُ عَشْرَ ثَوَانٍ لِلتَّفْكِيرِ، أَوْ تَضْغَطُ زِرَّ ابْدَأِ الْإِجَابَةَ الْآنَ. بَعْدَهَا تُجِيبُ بِحُرِّيَّةٍ بِدُونِ قُيُودٍ عَلَى الْوَقْتِ. عِنْدَمَا تَنْتَهِي اضْغَطْ زِرَّ انْتَهَيْتُ. لِنَبْدَأْ.`;
+  const txt = `${timeOfDay()}، ${S.name}. أَنَا لَاتِينُو، وَسَأُجْرِي مَعَكَ الْمُقَابَلَةَ الْمَبْدَئِيَّةَ الْيَوْمَ لِوَظِيفَةِ ${toAr(S.role)}. هَذِهِ مُقَابَلَةٌ قَصِيرَةٌ لِلتَّعَرُّفِ عَلَيْكَ وَتَقْيِيمِ مَدَى جَاهِزِيَّتِكَ قَبْلَ الِامْتِحَانِ التَّأْهِيلِيِّ. لَدَيْنَا ${toAr(S.questions.length)} أَسْئِلَةٍ. سَأَقْرَأُ كُلَّ سُؤَالٍ بِصَوْتٍ عَالٍ، ثُمَّ تَأْخُذُ عَشْرَ ثَوَانٍ لِلتَّفْكِيرِ، أَوْ تَضْغَطُ زِرَّ ابْدَأِ الْإِجَابَةَ الْآنَ. بَعْدَهَا تُجِيبُ بِحُرِّيَّةٍ بِدُونِ قُيُودٍ عَلَى الْوَقْتِ. عِنْدَمَا تَنْتَهِي اضْغَطْ زِرَّ انْتَهَيْتُ. لِنَبْدَأْ.`;
   setStatus('gold', 'الترحيب', txt);
   await speak(txt);
   await runQuestion();
@@ -950,13 +951,13 @@ function renderReport(r) {
 
   const strTags  = (strengths||[]).map(s=>`<span class="tag s">${s}</span>`).join('');
   const growTags = (areasForGrowth||[]).map(g=>`<span class="tag g">${g}</span>`).join('');
-  const recMap   = { HIRE:'✦ يُوصى بالتعيين', CONSIDER:'◈ يُدرَس مع تحفظات', REJECT:'✕ غير مُوصى بالتعيين' };
+  const recMap   = { PASS:'✦ مؤهَّل للانتقال إلى الامتحان التأهيلي', REJECT:'✕ غير مؤهَّل في هذه المرحلة', HIRE:'✦ مؤهَّل للانتقال إلى الامتحان التأهيلي', CONSIDER:'◈ يُدرَس مع تحفظات' };
 
   document.getElementById('reportBody').innerHTML = `
     <div class="rpt-hero-card fade-in">
       <div>
         <div class="rpt-cname">${S.name}</div>
-        <div class="rpt-cmeta">${S.role} · ${S.exp}</div>
+        <div class="rpt-cmeta">${toAr(S.role)} · ${S.exp}</div>
       </div>
       <div class="grade-ring grade-${grade}">
         <div class="gl">${grade}</div>
