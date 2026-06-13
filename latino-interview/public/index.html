@@ -522,6 +522,20 @@ const S = {
 const AR = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
 const toAr = n => String(n).split('').map(d => AR[+d]||d).join('');
 
+// Converts role strings into clean spoken Arabic so ElevenLabs pronounces grades correctly.
+// e.g. "معلّم صف 1-3" → "مُعَلِّم صُفُوف مِنَ الْأَوَّلِ إِلَى الثَّالِثِ"
+function spokenRole(role) {
+  const ord = { '1':'الْأَوَّلِ','2':'الثَّانِي','3':'الثَّالِثِ','4':'الرَّابِعِ','10':'الْعَاشِرِ','11':'الْحَادِيَ عَشَرَ','12':'الثَّانِيَ عَشَرَ' };
+  const m = role.match(/(\d+)\s*-\s*(\d+)/);
+  if (m) {
+    const a = ord[m[1]] || m[1];
+    const b = ord[m[2]] || m[2];
+    return `مُعَلِّمِ صُفُوفٍ مِنَ ${a} إِلَى ${b}`;
+  }
+  if (role.includes('رياض')) return 'مُعَلِّمِ رِيَاضِ الْأَطْفَالِ';
+  return role;
+}
+
 // ═══════════════════════════════════════════════
 //  SETUP
 // ═══════════════════════════════════════════════
@@ -748,7 +762,12 @@ async function stopRecordingAndTranscribe() {
       S.mediaRecorder.stream.getTracks().forEach(t => t.stop());
       const mime = S.recMime || 'audio/webm';
       const blob = new Blob(S.audioChunks, { type: mime });
-      if (blob.size < 500) { resolve(''); return; }
+      console.log('Recorded blob:', blob.size, 'bytes, mime:', mime, 'chunks:', S.audioChunks.length);
+      if (blob.size < 1000) {
+        setStatus('gold', 'لم يُلتقط صوت', `حجم التسجيل صغير جداً (${blob.size} بايت). تأكد من إذن الميكروفون وتحدّث بصوت أوضح.`);
+        resolve('');
+        return;
+      }
 
       const ext  = mime.includes('mp4') ? 'mp4' : mime.includes('ogg') ? 'ogg' : mime.includes('aac') ? 'aac' : 'webm';
       const form = new FormData();
@@ -761,8 +780,17 @@ async function stopRecordingAndTranscribe() {
       try {
         const res  = await fetch('/api/transcribe', { method: 'POST', body: form });
         const data = await res.json();
+        if (!res.ok || data.error) {
+          // Surface the real reason so we can diagnose
+          S.lastError = data;
+          console.error('Transcribe failed:', data);
+          const reason = data.detail ? `${data.error} — ${data.detail}` : (data.error || 'خطأ غير معروف');
+          setStatus('gold', 'تعذّر تحويل الصوت', reason);
+          resolve('');
+          return;
+        }
         resolve(data.transcript || '');
-      } catch(e) { console.error('STT:', e); resolve(''); }
+      } catch(e) { console.error('STT:', e); setStatus('gold','خطأ في الشبكة', e.message); resolve(''); }
     };
 
     S.mediaRecorder.stop();
@@ -782,7 +810,9 @@ async function stopRecordingAndTranscribe() {
 //  4. Deepgram transcribes → next question
 // ═══════════════════════════════════════════════
 async function doIntro() {
-  const txt = `${timeOfDay()}، ${S.name}. أَنَا لَاتِينُو، وَسَأُجْرِي مَعَكَ الْمُقَابَلَةَ الْمَبْدَئِيَّةَ الْيَوْمَ لِوَظِيفَةِ ${toAr(S.role)}. هَذِهِ مُقَابَلَةٌ قَصِيرَةٌ لِلتَّعَرُّفِ عَلَيْكَ وَتَقْيِيمِ مَدَى جَاهِزِيَّتِكَ قَبْلَ الِامْتِحَانِ التَّأْهِيلِيِّ. لَدَيْنَا ${toAr(S.questions.length)} أَسْئِلَةٍ. سَأَقْرَأُ كُلَّ سُؤَالٍ بِصَوْتٍ عَالٍ، ثُمَّ تَأْخُذُ عَشْرَ ثَوَانٍ لِلتَّفْكِيرِ، أَوْ تَضْغَطُ زِرَّ ابْدَأِ الْإِجَابَةَ الْآنَ. بَعْدَهَا تُجِيبُ بِحُرِّيَّةٍ بِدُونِ قُيُودٍ عَلَى الْوَقْتِ. عِنْدَمَا تَنْتَهِي اضْغَطْ زِرَّ انْتَهَيْتُ. لِنَبْدَأْ.`;
+  const countWords = { 3:'ثَلَاثَةُ', 4:'أَرْبَعَةُ', 5:'خَمْسَةُ', 6:'سِتَّةُ', 7:'سَبْعَةُ', 8:'ثَمَانِيَةُ' };
+  const cw = countWords[S.questions.length] || toAr(S.questions.length);
+  const txt = `${timeOfDay()}، ${S.name}. أَنَا لَاتِينُو. هَذِهِ مُقَابَلَةٌ مَبْدَئِيَّةٌ قَصِيرَةٌ لِوَظِيفَةِ ${spokenRole(S.role)}. سَأَطْرَحُ ${cw} أَسْئِلَةٍ، وَبَعْدَ كُلِّ سُؤَالٍ أَجِبْ بِحُرِّيَّةٍ ثُمَّ اضْغَطْ زِرَّ انْتَهَيْتُ. لِنَبْدَأْ.`;
   setStatus('gold', 'الترحيب', txt);
   await speak(txt);
   await runQuestion();

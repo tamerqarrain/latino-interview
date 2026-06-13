@@ -103,38 +103,58 @@ app.post('/api/speak', async (req, res) => {
 //  SPEECH → TEXT  (Deepgram REST — no SDK auth issues)
 // ─────────────────────────────────────────────────────
 app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No audio' });
+  if (!req.file) return res.status(400).json({ error: 'No audio', stage: 'upload' });
 
+  // Deepgram accepts the full codec string; keep it as-is, fallback to webm.
   const contentType = req.body.mime || req.file.mimetype || 'audio/webm';
 
+  if (!DEEPGRAM_API_KEY) {
+    return res.status(500).json({ error: 'مفتاح Deepgram غير مهيأ', stage: 'config' });
+  }
+
   try {
-    const response = await fetch(
-      'https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&language=ar',
-      {
-        method:  'POST',
-        headers: {
-          'Authorization': `Token ${DEEPGRAM_API_KEY}`,
-          'Content-Type':  contentType,
-        },
-        body: req.file.buffer,
-      }
-    );
+    const dgUrl = 'https://api.deepgram.com/v1/listen'
+      + '?model=nova-2'
+      + '&smart_format=true'
+      + '&punctuate=true'
+      + '&language=ar'
+      + '&detect_language=false';
+
+    const response = await fetch(dgUrl, {
+      method:  'POST',
+      headers: {
+        'Authorization': `Token ${DEEPGRAM_API_KEY}`,
+        'Content-Type':  contentType,
+      },
+      body: req.file.buffer,
+    });
+
+    const bodyText = await response.text();
 
     if (!response.ok) {
-      const detail = await response.text();
-      console.error('Deepgram error:', detail);
-      return res.status(502).json({ error: 'Deepgram transcription failed', detail });
+      console.error('Deepgram HTTP', response.status, bodyText);
+      return res.status(502).json({
+        error: 'فشل تحويل الصوت إلى نص',
+        stage: 'deepgram',
+        httpStatus: response.status,
+        detail: bodyText.slice(0, 300),
+        sentContentType: contentType,
+        audioBytes: req.file.buffer.length,
+      });
     }
 
-    const data = await response.json();
+    let data;
+    try { data = JSON.parse(bodyText); }
+    catch { return res.status(502).json({ error: 'رد غير صالح من Deepgram', detail: bodyText.slice(0,200) }); }
+
     const transcript =
       data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
-    console.log(`Transcribed (${contentType}, ${req.file.buffer.length}b): "${transcript.slice(0,60)}"`);
-    res.json({ transcript });
+    console.log(`Transcribed (${contentType}, ${req.file.buffer.length}b): "${transcript.slice(0,80)}"`);
+    res.json({ transcript, audioBytes: req.file.buffer.length });
 
   } catch (err) {
-    console.error('Transcribe error:', err);
-    res.status(500).json({ error: err.message });
+    console.error('Transcribe exception:', err);
+    res.status(500).json({ error: err.message, stage: 'exception' });
   }
 });
 
