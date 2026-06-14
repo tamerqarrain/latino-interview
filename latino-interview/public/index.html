@@ -531,22 +531,6 @@
   </div>
 </div>
 
-<!-- ══ REPORT (admin only — not shown to candidates) ══ -->
-<div class="screen hidden" id="reportScreen">
-  <div class="report-inner">
-    <div class="rpt-head">
-      <h1>تقرير المقابلة المبدئية</h1>
-      <div class="rpt-line"></div>
-      <div class="rpt-date" id="rptDate"></div>
-    </div>
-    <div id="reportBody"></div>
-    <div class="rpt-actions">
-      <button class="rpt-btn primary" onclick="newInterview()">+ مرشح جديد</button>
-      <button class="rpt-btn" onclick="window.print()">طباعة التقرير</button>
-    </div>
-  </div>
-</div>
-
 <script>
 // ═══════════════════════════════════════════════
 //  CONSTANTS
@@ -612,7 +596,7 @@ async function beginInterview() {
 }
 
 function showScreen(id) {
-  ['setupScreen','roomScreen','reportScreen','thankScreen'].forEach(s =>
+  ['setupScreen','roomScreen','thankScreen'].forEach(s =>
     document.getElementById(s).classList.toggle('hidden', s !== id));
 }
 
@@ -1063,74 +1047,6 @@ async function runEvaluation() {
 // ═══════════════════════════════════════════════
 //  RENDER REPORT
 // ═══════════════════════════════════════════════
-function renderReport(r) {
-  const months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-  const now = new Date();
-  document.getElementById('rptDate').textContent = `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
-
-  if (r.error) {
-    document.getElementById('reportBody').innerHTML =
-      `<p style="color:var(--red);text-align:center;padding:40px;font-size:16px;">${r.error}</p>`;
-    return;
-  }
-
-  const { overallScore, grade, summary, questionEvals, strengths, areasForGrowth, recommendation, recommendationReason } = r;
-
-  const qaHTML = S.questions.map((q, i) => {
-    const ev = (questionEvals||[])[i] || {};
-    const stars = '★'.repeat(ev.score||0)+'☆'.repeat(5-(ev.score||0));
-    return `<div class="qa-row">
-      <div class="qa-q"><span class="qa-n">س${toAr(i+1)}</span>${q.display || q.q}</div>
-      <div class="qa-a">${S.answers[i]||'(لا توجد إجابة)'}</div>
-      <div class="qa-eval"><span class="stars">${stars}</span>${ev.evaluation||'—'}</div>
-    </div>`;
-  }).join('');
-
-  const strTags  = (strengths||[]).map(s=>`<span class="tag s">${s}</span>`).join('');
-  const growTags = (areasForGrowth||[]).map(g=>`<span class="tag g">${g}</span>`).join('');
-  const recMap   = { PASS:'✦ مؤهَّل للانتقال إلى الامتحان التأهيلي', REJECT:'✕ غير مؤهَّل في هذه المرحلة', HIRE:'✦ مؤهَّل للانتقال إلى الامتحان التأهيلي', CONSIDER:'◈ يُدرَس مع تحفظات' };
-
-  document.getElementById('reportBody').innerHTML = `
-    <div class="rpt-hero-card fade-in">
-      <div>
-        <div class="rpt-cname">${S.name}</div>
-        <div class="rpt-cmeta">${toAr(S.role)} · ${S.exp}</div>
-      </div>
-      <div class="grade-ring grade-${grade}">
-        <div class="gl">${grade}</div>
-        <div class="gs">${overallScore}/100</div>
-      </div>
-    </div>
-    <div class="rpt-section fade-in">
-      <div class="rpt-section-head">الملخص التنفيذي</div>
-      <div class="summary-block">${summary}</div>
-    </div>
-    <div class="rpt-section fade-in">
-      <div class="rpt-section-head">نقاط القوة ومجالات التطوير</div>
-      <div class="two-col">
-        <div>
-          <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:10px;">نقاط القوة</div>
-          <div class="tag-wrap">${strTags}</div>
-        </div>
-        <div>
-          <div style="font-size:12px;font-weight:700;color:#e8b020;margin-bottom:10px;">مجالات التطوير</div>
-          <div class="tag-wrap">${growTags}</div>
-        </div>
-      </div>
-    </div>
-    <div class="rpt-section fade-in">
-      <div class="rpt-section-head">تقييم الأسئلة والإجابات</div>
-      ${qaHTML}
-    </div>
-    <div class="rpt-section fade-in">
-      <div class="rpt-section-head">التوصية النهائية</div>
-      <div class="verdict v-${recommendation}">
-        ${recMap[recommendation]||recommendation}
-        <div class="verdict-sub">${recommendationReason}</div>
-      </div>
-    </div>`;
-}
-
 function newInterview() {
   S.name=''; S.exp=''; S.role=''; S.questions=[]; S.answers=[];
   S.currentQ=0; S.phase='idle';
