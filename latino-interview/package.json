@@ -10,7 +10,12 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": ["interview", "ai", "voice", "education"],
+  "keywords": [
+    "interview",
+    "ai",
+    "voice",
+    "education"
+  ],
   "author": "Media Plus",
   "license": "ISC",
   "dependencies": {
@@ -20,6 +25,7 @@
     "elevenlabs": "^1.59.0",
     "express": "^5.2.1",
     "multer": "^2.1.1",
+    "resend": "^6.12.4",
     "ws": "^8.21.0"
   }
 }

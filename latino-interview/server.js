@@ -6,6 +6,7 @@ const Anthropic  = require('@anthropic-ai/sdk');
 const { DeepgramClient } = require('@deepgram/sdk');
 const multer     = require('multer');
 const path       = require('path');
+const { Resend } = require('resend');
 const QUESTIONS  = require('./questions');
 
 const app    = express();
@@ -22,6 +23,12 @@ const DEEPGRAM_API_KEY   = process.env.DEEPGRAM_API_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const VOICE_ID           = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
 
+// Email (Resend) — reports are emailed to HR, hidden from candidates
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const HR_EMAIL       = process.env.HR_EMAIL;                       // where reports are sent
+const FROM_EMAIL     = process.env.FROM_EMAIL || 'onboarding@resend.dev';
+const resend         = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+
 // ─────────────────────────────────────────────────────
 //  HEALTH CHECK
 // ─────────────────────────────────────────────────────
@@ -31,6 +38,7 @@ app.get('/api/health', (req, res) => {
     elevenlabs: !!ELEVENLABS_API_KEY,
     deepgram:   !!DEEPGRAM_API_KEY,
     anthropic:  !!process.env.ANTHROPIC_API_KEY,
+    email:      !!(RESEND_API_KEY && HR_EMAIL),
     voice:      VOICE_ID,
   });
 });
@@ -204,13 +212,105 @@ ${qaBlock}
     const raw    = message.content.map(b => b.text || '').join('');
     const clean  = raw.replace(/```json|```/g, '').trim();
     const result = JSON.parse(clean);
-    res.json(result);
+
+    // Email the report to HR (candidate never sees it)
+    let emailed = false;
+    if (resend && HR_EMAIL) {
+      try {
+        const html = buildReportEmail({ name, exp, role, questions, answers, result });
+        const recLabel = result.recommendation === 'PASS' ? 'مؤهَّل للامتحان التأهيلي' : 'غير مؤهَّل';
+        await resend.emails.send({
+          from:    `لاتينو <${FROM_EMAIL}>`,
+          to:      HR_EMAIL.split(',').map(e => e.trim()),
+          subject: `تقرير مقابلة: ${name} — ${role} — ${recLabel} (${result.overallScore}/100)`,
+          html,
+        });
+        emailed = true;
+        console.log(`Report emailed to ${HR_EMAIL} for candidate ${name}`);
+      } catch (mailErr) {
+        console.error('Email send failed:', mailErr);
+      }
+    } else {
+      console.warn('Email not configured (RESEND_API_KEY / HR_EMAIL missing) — report not sent.');
+    }
+
+    // Return only a minimal confirmation; do NOT send the report to the candidate's browser
+    res.json({ ok: true, emailed });
 
   } catch (err) {
     console.error('Evaluate error:', err);
     res.status(500).json({ error: err.message });
   }
 });
+
+// Build a clean RTL HTML email of the report for HR
+function buildReportEmail({ name, exp, role, questions, answers, result }) {
+  const { overallScore, grade, summary, questionEvals, strengths, areasForGrowth, recommendation, recommendationReason } = result;
+  const pass     = recommendation === 'PASS';
+  const recColor = pass ? '#27ae60' : '#e74c3c';
+  const recLabel = pass ? '✓ مؤهَّل للانتقال إلى الامتحان التأهيلي' : '✕ غير مؤهَّل في هذه المرحلة';
+  const date = new Date().toLocaleDateString('ar-EG', { year:'numeric', month:'long', day:'numeric' });
+
+  const qaRows = questions.map((q, i) => {
+    const ev = (questionEvals||[])[i] || {};
+    const stars = '★'.repeat(ev.score||0) + '☆'.repeat(5-(ev.score||0));
+    return `<tr>
+      <td style="padding:12px;border-bottom:1px solid #eee;vertical-align:top;">
+        <div style="font-weight:bold;color:#1a2840;margin-bottom:6px;">س${i+1}: ${q.display || q.q}</div>
+        <div style="background:#f7f7f7;padding:10px;border-radius:6px;color:#444;font-size:14px;margin-bottom:6px;">${answers[i] || '(لا توجد إجابة)'}</div>
+        <div style="color:#c9a84c;font-size:14px;">${stars} <span style="color:#666;">${ev.evaluation||''}</span></div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const strList  = (strengths||[]).map(s => `<li>${s}</li>`).join('');
+  const growList = (areasForGrowth||[]).map(g => `<li>${g}</li>`).join('');
+
+  return `<!DOCTYPE html><html dir="rtl" lang="ar"><body style="font-family:Tahoma,Arial,sans-serif;background:#f0f0f0;margin:0;padding:20px;">
+  <div style="max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
+    <div style="background:#0d1520;color:#c9a84c;padding:24px 28px;">
+      <div style="font-size:22px;font-weight:bold;">تقرير المقابلة المبدئية</div>
+      <div style="color:#9aa;font-size:13px;margin-top:4px;">نظام لاتينو · ${date}</div>
+    </div>
+    <div style="padding:28px;">
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+        <tr>
+          <td style="vertical-align:top;">
+            <div style="font-size:24px;font-weight:bold;color:#1a2840;">${name}</div>
+            <div style="color:#666;font-size:14px;margin-top:4px;">${role} · ${exp}</div>
+          </td>
+          <td style="text-align:left;vertical-align:top;">
+            <div style="display:inline-block;border:3px solid ${recColor};border-radius:50%;width:70px;height:70px;text-align:center;line-height:70px;font-size:24px;font-weight:bold;color:${recColor};">${grade}</div>
+            <div style="color:#666;font-size:13px;margin-top:4px;">${overallScore}/100</div>
+          </td>
+        </tr>
+      </table>
+
+      <div style="background:${pass?'#eafaf0':'#fdeeec'};border:1px solid ${recColor};border-radius:8px;padding:16px;text-align:center;margin-bottom:24px;">
+        <div style="font-size:18px;font-weight:bold;color:${recColor};">${recLabel}</div>
+        <div style="color:#555;font-size:14px;margin-top:8px;line-height:1.6;">${recommendationReason||''}</div>
+      </div>
+
+      <div style="font-weight:bold;color:#c9a84c;font-size:13px;border-bottom:1px solid #eee;padding-bottom:8px;margin-bottom:12px;">الملخص التنفيذي</div>
+      <div style="color:#333;line-height:1.8;font-size:15px;margin-bottom:24px;">${summary||''}</div>
+
+      <table style="width:100%;margin-bottom:24px;"><tr>
+        <td style="width:50%;vertical-align:top;padding-left:8px;">
+          <div style="font-weight:bold;color:#27ae60;font-size:13px;margin-bottom:8px;">نقاط القوة</div>
+          <ul style="color:#444;font-size:14px;line-height:1.8;padding-right:18px;margin:0;">${strList}</ul>
+        </td>
+        <td style="width:50%;vertical-align:top;padding-right:8px;">
+          <div style="font-weight:bold;color:#e8a020;font-size:13px;margin-bottom:8px;">مجالات التطوير</div>
+          <ul style="color:#444;font-size:14px;line-height:1.8;padding-right:18px;margin:0;">${growList}</ul>
+        </td>
+      </tr></table>
+
+      <div style="font-weight:bold;color:#c9a84c;font-size:13px;border-bottom:1px solid #eee;padding-bottom:8px;margin-bottom:12px;">تقييم الأسئلة والإجابات</div>
+      <table style="width:100%;border-collapse:collapse;">${qaRows}</table>
+    </div>
+  </div>
+</body></html>`;
+}
 
 // ─────────────────────────────────────────────────────
 //  START
@@ -224,5 +324,7 @@ server.listen(PORT, () => {
   console.log(`  ElevenLabs : ${ELEVENLABS_API_KEY            ? '✓ configured' : '✗ MISSING'}`);
   console.log(`  Deepgram   : ${DEEPGRAM_API_KEY              ? '✓ configured' : '✗ MISSING'}`);
   console.log(`  Anthropic  : ${process.env.ANTHROPIC_API_KEY ? '✓ configured' : '✗ MISSING'}`);
+  console.log(`  Anthropic  : ${process.env.ANTHROPIC_API_KEY ? '✓ configured' : '✗ MISSING'}`);
+  console.log(`  Email      : ${(RESEND_API_KEY && HR_EMAIL) ? '✓ → ' + HR_EMAIL : '✗ not configured'}`);
   console.log(`  Voice ID   : ${VOICE_ID}\n`);
 });

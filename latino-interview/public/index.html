@@ -273,6 +273,40 @@
   .ctrl.danger:hover:not(:disabled) { background: rgba(231,76,60,.08); }
   .ctrl:disabled { opacity: .3; cursor: default; }
 
+  /* ══ THANK YOU ══ */
+  .thank-card {
+    text-align: center; max-width: 520px; padding: 0 32px;
+  }
+  .thank-orb {
+    width: 96px; height: 96px; border-radius: 50%;
+    border: 2px solid var(--green);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 28px;
+    background: radial-gradient(circle at 35% 30%, rgba(39,174,96,0.15), var(--bg));
+    box-shadow: 0 0 50px rgba(39,174,96,0.25), inset 0 0 25px rgba(39,174,96,0.08);
+  }
+  .thank-orb span { font-size: 44px; color: var(--green); line-height: 1; }
+  .thank-card h1 { font-size: 36px; font-weight: 900; color: var(--text); margin-bottom: 18px; }
+  .thank-card p { font-size: 18px; line-height: 1.8; color: var(--text-dim); }
+  .thank-status {
+    margin-top: 32px; display: inline-flex; align-items: center; gap: 10px;
+    font-size: 13px; color: var(--text-dim);
+    padding: 10px 18px; border: 1px solid var(--border); border-radius: 99px;
+  }
+  .thank-spinner {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid var(--border); border-top-color: var(--gold);
+    animation: spin 0.8s linear infinite;
+  }
+  .thank-status.done { border-color: rgba(39,174,96,0.4); color: var(--green); }
+  .thank-status.done .thank-spinner { display: none; }
+  @media (max-width: 600px) {
+    .thank-card h1 { font-size: 28px; }
+    .thank-card p { font-size: 16px; }
+    .thank-orb { width: 80px; height: 80px; }
+    .thank-orb span { font-size: 36px; }
+  }
+
   /* ══ REPORT ══ */
   #reportScreen { overflow-y: auto; align-items: flex-start; padding: 60px 24px 80px; }
   .report-inner { max-width: 760px; width: 100%; margin: 0 auto; }
@@ -483,7 +517,21 @@
   </div>
 </div>
 
-<!-- ══ REPORT ══ -->
+<!-- ══ THANK YOU (candidate-facing) ══ -->
+<div class="screen hidden" id="thankScreen">
+  <div class="thank-card fade-in">
+    <div class="thank-orb"><span>✓</span></div>
+    <h1 id="thankTitle">شكراً لك</h1>
+    <p id="thankMsg">شكراً لحضورك المقابلة. لقد استلمنا إجاباتك، وسيقوم فريقنا بمراجعتها والتواصل معك في أقرب وقت.</p>
+    <div class="thank-status" id="thankStatus">
+      <span class="thank-spinner" id="thankSpinner"></span>
+      <span id="thankStatusText">جارٍ حفظ إجاباتك…</span>
+    </div>
+    <button class="rpt-btn primary" id="thankNewBtn" style="display:none;margin-top:28px;" onclick="newInterview()">مقابلة جديدة</button>
+  </div>
+</div>
+
+<!-- ══ REPORT (admin only — not shown to candidates) ══ -->
 <div class="screen hidden" id="reportScreen">
   <div class="report-inner">
     <div class="rpt-head">
@@ -564,7 +612,7 @@ async function beginInterview() {
 }
 
 function showScreen(id) {
-  ['setupScreen','roomScreen','reportScreen'].forEach(s =>
+  ['setupScreen','roomScreen','reportScreen','thankScreen'].forEach(s =>
     document.getElementById(s).classList.toggle('hidden', s !== id));
 }
 
@@ -975,18 +1023,41 @@ async function endEarly() {
 //  EVALUATE WITH CLAUDE
 // ═══════════════════════════════════════════════
 async function runEvaluation() {
+  // Candidate immediately sees only the thank-you screen.
+  showScreen('thankScreen');
+  const statusBox  = document.getElementById('thankStatus');
+  const statusText = document.getElementById('thankStatusText');
+  statusBox.classList.remove('done');
+  statusText.textContent = 'جارٍ حفظ إجاباتك…';
+
+  // In the background: generate the evaluation and email it to HR.
   try {
     const res = await fetch('/api/evaluate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: S.name, exp: S.exp, role: S.role, questions: S.questions, answers: S.answers }),
     });
-    const report = await res.json();
-    renderReport(report);
-    showScreen('reportScreen');
+    const data = await res.json();
+
+    if (res.ok && !data.error) {
+      statusBox.classList.add('done');
+      statusText.textContent = 'تم استلام إجاباتك بنجاح ✓';
+    } else {
+      // Even if email/eval failed, candidate still sees a graceful message.
+      statusBox.classList.add('done');
+      statusText.textContent = 'تم استلام إجاباتك ✓';
+      console.error('Evaluation/email issue:', data);
+    }
   } catch(e) {
-    setStatus('gold', 'خطأ', 'فشل التقييم: ' + e.message);
+    statusBox.classList.add('done');
+    statusText.textContent = 'تم استلام إجاباتك ✓';
+    console.error('Eval error:', e);
   }
+
+  // Allow starting a new interview after a short pause
+  setTimeout(() => {
+    document.getElementById('thankNewBtn').style.display = '';
+  }, 2500);
 }
 
 // ═══════════════════════════════════════════════
@@ -1067,6 +1138,7 @@ function newInterview() {
   document.getElementById('sRole').value='';
   document.getElementById('btnBegin').disabled=false;
   document.getElementById('setupErr').textContent='';
+  document.getElementById('thankNewBtn').style.display='none';
   showScreen('setupScreen');
 }
 
