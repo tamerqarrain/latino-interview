@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>فحص النظام — Latino</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&family=DM+Mono&display=swap" rel="stylesheet">
+<style>
+  body { font-family:'Tajawal',sans-serif; background:#070b0f; color:#ddd8cc; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; direction:rtl; }
+  .card { background:#0d1520; border:1px solid #1a2840; border-radius:20px; padding:40px; width:480px; }
+  h1 { font-size:24px; text-align:center; margin-bottom:8px; }
+  .sub { text-align:center; color:#5a6b80; font-size:13px; margin-bottom:28px; }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:14px 18px; border:1px solid #1a2840; border-radius:10px; margin-bottom:10px; }
+  .label { font-weight:700; }
+  .badge { font-family:'DM Mono'; font-size:13px; padding:4px 12px; border-radius:99px; }
+  .ok { color:#27ae60; border:1px solid rgba(39,174,96,.4); background:rgba(39,174,96,.08); }
+  .bad { color:#e74c3c; border:1px solid rgba(231,76,60,.4); background:rgba(231,76,60,.08); }
+  .test-btn { width:100%; margin-top:18px; padding:14px; border-radius:10px; border:1px solid #c9a84c; background:transparent; color:#c9a84c; font-family:'Tajawal'; font-size:16px; font-weight:700; cursor:pointer; }
+  .test-out { margin-top:16px; font-family:'DM Mono'; font-size:12px; color:#5a6b80; white-space:pre-wrap; line-height:1.6; max-height:200px; overflow:auto; }
+  a { color:#c9a84c; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>فحص نظام Latino</h1>
+  <div class="sub">System Health Check</div>
+  <div id="rows">جارٍ الفحص…</div>
+  <button class="test-btn" onclick="testVoice()">🔊 اختبار صوت ElevenLabs</button>
+  <div class="test-out" id="out"></div>
+  <p style="text-align:center;margin-top:20px;"><a href="/">← العودة للمقابلة</a></p>
+</div>
+<script>
+async function check() {
+  try {
+    const res = await fetch('/api/health');
+    const h = await res.json();
+    const item = (label, ok) =>
+      `<div class="row"><span class="label">${label}</span>
+       <span class="badge ${ok?'ok':'bad'}">${ok?'✓ متصل':'✗ مفقود'}</span></div>`;
+    document.getElementById('rows').innerHTML =
+      item('Anthropic (Claude)', h.anthropic) +
+      item('ElevenLabs (الصوت)', h.elevenlabs) +
+      item('Deepgram (التفريغ)', h.deepgram) +
+      `<div class="row"><span class="label">Voice ID</span>
+       <span class="badge ${h.voice?'ok':'bad'}" style="font-size:11px">${h.voice||'—'}</span></div>`;
+  } catch(e) {
+    document.getElementById('rows').innerHTML =
+      `<div class="row"><span class="label">الخادم</span><span class="badge bad">✗ لا يستجيب</span></div>`;
+  }
+}
+async function testVoice() {
+  const out = document.getElementById('out');
+  out.textContent = 'جارٍ طلب الصوت من ElevenLabs…';
+  try {
+    const res = await fetch('/api/speak', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ text:'مرحباً، هذا اختبار صوتي لنظام لاتينو.' })
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      out.textContent = '❌ فشل ElevenLabs (HTTP '+res.status+'):\n'+err;
+      return;
+    }
+    const blob = await res.blob();
+    out.textContent = '✓ تم استلام الصوت ('+Math.round(blob.size/1024)+' كيلوبايت). جارٍ التشغيل…';
+    const audio = new Audio(URL.createObjectURL(blob));
+    audio.play();
+  } catch(e) {
+    out.textContent = '❌ خطأ: '+e.message;
+  }
+}
+check();
+</script>
+</body>
+</html>
