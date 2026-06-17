@@ -877,7 +877,7 @@ async function stopRecordingAndTranscribe() {
 //  4. Deepgram transcribes → next question
 // ═══════════════════════════════════════════════
 async function doIntro() {
-  const countWords = { 3:'ثَلَاثَةُ', 4:'أَرْبَعَةُ', 5:'خَمْسَةُ', 6:'سِتَّةُ', 7:'سَبْعَةُ', 8:'ثَمَانِيَةُ' };
+  const countWords = { 3:'ثَلَاثَةَ', 4:'أَرْبَعَةَ', 5:'خَمْسَةَ', 6:'سِتَّةَ', 7:'سَبْعَةَ', 8:'ثَمَانِيَةَ' };
   const cw = countWords[S.questions.length] || toAr(S.questions.length);
   const txt = `${timeOfDay()}، ${S.name}. أَنَا لَاتِينُو. هَذِهِ مُقَابَلَةٌ مَبْدَئِيَّةٌ قَصِيرَةٌ لِوَظِيفَةِ ${spokenRole(S.role)}. سَأَطْرَحُ ${cw} أَسْئِلَةٍ، وَبَعْدَ كُلِّ سُؤَالٍ أَجِبْ بِحُرِّيَّةٍ ثُمَّ اضْغَطْ زِرَّ انْتَهَيْتُ. لِنَبْدَأْ.`;
   setStatus('gold', 'الترحيب', txt);

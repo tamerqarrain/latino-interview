@@ -78,7 +78,6 @@ app.post('/api/speak', async (req, res) => {
             similarity_boost:  0.82,
             style:             0.30,
             use_speaker_boost: true,
-            speed:             1.1,
           },
         }),
       }
