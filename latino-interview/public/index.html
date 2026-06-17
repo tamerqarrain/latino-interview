@@ -688,7 +688,10 @@ function startReadCountdown(onComplete) {
 
     if (S.readLeft <= 0) {
       stopReadCountdown();
-      if (onComplete) onComplete();
+      // Use S.readOnComplete (not the closure) so answerNow() can null it out and prevent double-fire.
+      const cb = S.readOnComplete;
+      S.readOnComplete = null;
+      if (cb) cb();
     }
   }, 1000);
 }
@@ -711,6 +714,18 @@ function stopReadCountdown() {
 //  DEEPGRAM STT — unlimited recording
 // ═══════════════════════════════════════════════
 async function startRecording() {
+  // Guard: if recording is already active, don't start a second one (causes "Device in use")
+  if (S.mediaRecorder && S.mediaRecorder.state === 'recording') {
+    console.warn('startRecording called while already recording — ignoring duplicate call');
+    return;
+  }
+
+  // Clean up any orphaned tracks before requesting the mic again
+  if (S.mediaRecorder && S.mediaRecorder.stream) {
+    try { S.mediaRecorder.stream.getTracks().forEach(t => t.stop()); } catch {}
+    S.mediaRecorder = null;
+  }
+
   setPhase('listening');
   setStatus('green', 'يرجى الإجابة الآن', 'التسجيل جارٍ… اضغط "انتهيت من الإجابة" عند الانتهاء.');
   S.audioChunks = [];
