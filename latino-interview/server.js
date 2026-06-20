@@ -7,6 +7,7 @@ const { DeepgramClient } = require('@deepgram/sdk');
 const multer     = require('multer');
 const path       = require('path');
 const { Resend } = require('resend');
+const { google } = require('googleapis');
 const QUESTIONS  = require('./questions');
 
 const app    = express();
@@ -29,6 +30,96 @@ const HR_EMAIL       = process.env.HR_EMAIL;                       // where repo
 const FROM_EMAIL     = process.env.FROM_EMAIL || 'onboarding@resend.dev';
 const resend         = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
+// Google Sheets — appends every report as a row for searchable history
+const GOOGLE_SHEET_ID            = process.env.GOOGLE_SHEET_ID;
+const GOOGLE_SERVICE_EMAIL       = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+const GOOGLE_SERVICE_KEY         = (process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '').replace(/\\n/g, '\n');
+const SHEETS_TAB                 = process.env.GOOGLE_SHEET_TAB || 'Sheet1';
+
+let sheetsClient = null;
+if (GOOGLE_SHEET_ID && GOOGLE_SERVICE_EMAIL && GOOGLE_SERVICE_KEY) {
+  try {
+    const auth = new google.auth.JWT(
+      GOOGLE_SERVICE_EMAIL,
+      null,
+      GOOGLE_SERVICE_KEY,
+      ['https://www.googleapis.com/auth/spreadsheets']
+    );
+    sheetsClient = google.sheets({ version: 'v4', auth });
+    console.log('Google Sheets: configured for sheet', GOOGLE_SHEET_ID);
+  } catch (e) {
+    console.error('Google Sheets init failed:', e.message);
+  }
+}
+
+// Append one row per interview to the Google Sheet (creates header row first time)
+async function appendReportToSheet({ name, exp, role, questions, answers, result }) {
+  if (!sheetsClient) return;
+  try {
+    // Ensure header row exists
+    const HEADER = [
+      'التاريخ والوقت', 'اسم المرشح', 'الوظيفة', 'سنوات الخبرة',
+      'النتيجة', 'التقدير', 'القرار', 'سبب القرار', 'الملخص التنفيذي',
+      'نقاط القوة', 'مجالات التطوير',
+      'س1 سؤال', 'س1 إجابة', 'س1 درجة', 'س1 تقييم',
+      'س2 سؤال', 'س2 إجابة', 'س2 درجة', 'س2 تقييم',
+      'س3 سؤال', 'س3 إجابة', 'س3 درجة', 'س3 تقييم',
+      'س4 سؤال', 'س4 إجابة', 'س4 درجة', 'س4 تقييم',
+      'س5 سؤال', 'س5 إجابة', 'س5 درجة', 'س5 تقييم',
+      'س6 سؤال', 'س6 إجابة', 'س6 درجة', 'س6 تقييم',
+      'س7 سؤال', 'س7 إجابة', 'س7 درجة', 'س7 تقييم',
+      'س8 سؤال', 'س8 إجابة', 'س8 درجة', 'س8 تقييم',
+    ];
+
+    // Check if header exists
+    const existing = await sheetsClient.spreadsheets.values.get({
+      spreadsheetId: GOOGLE_SHEET_ID,
+      range: `${SHEETS_TAB}!A1:A1`,
+    });
+    if (!existing.data.values || existing.data.values.length === 0) {
+      // Write header row first
+      await sheetsClient.spreadsheets.values.update({
+        spreadsheetId: GOOGLE_SHEET_ID,
+        range: `${SHEETS_TAB}!A1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [HEADER] },
+      });
+    }
+
+    // Build the row
+    const date = new Date().toLocaleString('ar-EG', { timeZone: 'Asia/Amman' });
+    const row = [
+      date, name, role, exp,
+      result.overallScore, result.grade,
+      result.recommendation === 'PASS' ? 'مؤهَّل للامتحان التأهيلي' : 'غير مؤهَّل',
+      result.recommendationReason || '',
+      result.summary || '',
+      (result.strengths || []).join(' • '),
+      (result.areasForGrowth || []).join(' • '),
+    ];
+    // Append per-question columns (up to 8)
+    for (let i = 0; i < 8; i++) {
+      const q = questions[i];
+      const ev = (result.questionEvals || [])[i] || {};
+      row.push(q ? (q.display || q.q) : '');
+      row.push(answers[i] || '');
+      row.push(ev.score || '');
+      row.push(ev.evaluation || '');
+    }
+
+    await sheetsClient.spreadsheets.values.append({
+      spreadsheetId: GOOGLE_SHEET_ID,
+      range: `${SHEETS_TAB}!A1`,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [row] },
+    });
+    console.log(`Sheet: appended row for ${name}`);
+  } catch (err) {
+    console.error('Sheet append failed:', err.message);
+  }
+}
+
 // ─────────────────────────────────────────────────────
 //  HEALTH CHECK
 // ─────────────────────────────────────────────────────
@@ -39,6 +130,7 @@ app.get('/api/health', (req, res) => {
     deepgram:   !!DEEPGRAM_API_KEY,
     anthropic:  !!process.env.ANTHROPIC_API_KEY,
     email:      !!(RESEND_API_KEY && HR_EMAIL),
+    sheets:     !!sheetsClient,
     voice:      VOICE_ID,
   });
 });
@@ -172,11 +264,17 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
 app.post('/api/evaluate', async (req, res) => {
   const { name, exp, role, questions, answers } = req.body;
 
-  const qaBlock = questions.map((q, i) =>
-    `س${i+1} [${q.cat}]: ${q.q}\nالإجابة: ${answers[i] || '(لم يتم الإجابة)'}`
-  ).join('\n\n');
+  // Respond to the candidate INSTANTLY so the thank-you screen doesn't hang.
+  // The evaluation + email then run in the background.
+  res.json({ ok: true, queued: true });
 
-  const prompt = `أنت "لاتينو"، أخصائي موارد بشرية أول في شبكة مدارس ورياض أطفال. أجريت للتو مقابلة فرز مبدئية (Initial Screening) صوتية. الهدف من هذه المقابلة هو تحديد ما إذا كان المرشح يستحق الانتقال إلى الامتحان التأهيلي (Entrance Exam) أم لا. الإجابات أدناه منقولة نصياً عبر تقنية تحويل الكلام إلى نص — قد تحتوي على أخطاء طفيفة في النسخ، لذا قيّم المحتوى والمقصد بشكل موضوعي.
+  // ── BACKGROUND PROCESSING ───────────────────────
+  (async () => {
+    const qaBlock = questions.map((q, i) =>
+      `س${i+1} [${q.cat}]: ${q.q}\nالإجابة: ${answers[i] || '(لم يتم الإجابة)'}`
+    ).join('\n\n');
+
+    const prompt = `أنت "لاتينو"، أخصائي موارد بشرية أول في شبكة مدارس ورياض أطفال. أجريت للتو مقابلة فرز مبدئية (Initial Screening) صوتية. الهدف من هذه المقابلة هو تحديد ما إذا كان المرشح يستحق الانتقال إلى الامتحان التأهيلي (Entrance Exam) أم لا. الإجابات أدناه منقولة نصياً عبر تقنية تحويل الكلام إلى نص — قد تحتوي على أخطاء طفيفة في النسخ، لذا قيّم المحتوى والمقصد بشكل موضوعي.
 
 المرشح: ${name}
 الوظيفة المتقدم إليها: ${role}
@@ -201,45 +299,41 @@ ${qaBlock}
 
 ملاحظة: استخدم "PASS" إذا كان المرشح مؤهلاً للانتقال إلى الامتحان التأهيلي، و"REJECT" إذا لم يكن مناسباً في هذه المرحلة.`;
 
-  try {
-    const message = await anthropic.messages.create({
-      model:      'claude-sonnet-4-6',
-      max_tokens: 2000,
-      messages:   [{ role: 'user', content: prompt }],
-    });
+    try {
+      const message = await anthropic.messages.create({
+        model:      'claude-sonnet-4-6',
+        max_tokens: 2000,
+        messages:   [{ role: 'user', content: prompt }],
+      });
 
-    const raw    = message.content.map(b => b.text || '').join('');
-    const clean  = raw.replace(/```json|```/g, '').trim();
-    const result = JSON.parse(clean);
+      const raw    = message.content.map(b => b.text || '').join('');
+      const clean  = raw.replace(/```json|```/g, '').trim();
+      const result = JSON.parse(clean);
 
-    // Email the report to HR (candidate never sees it)
-    let emailed = false;
-    if (resend && HR_EMAIL) {
-      try {
-        const html = buildReportEmail({ name, exp, role, questions, answers, result });
-        const recLabel = result.recommendation === 'PASS' ? 'مؤهَّل للامتحان التأهيلي' : 'غير مؤهَّل';
-        await resend.emails.send({
-          from:    `لاتينو <${FROM_EMAIL}>`,
-          to:      HR_EMAIL.split(',').map(e => e.trim()),
-          subject: `تقرير مقابلة: ${name} — ${role} — ${recLabel} (${result.overallScore}/100)`,
-          html,
-        });
-        emailed = true;
-        console.log(`Report emailed to ${HR_EMAIL} for candidate ${name}`);
-      } catch (mailErr) {
-        console.error('Email send failed:', mailErr);
+      if (resend && HR_EMAIL) {
+        try {
+          const html = buildReportEmail({ name, exp, role, questions, answers, result });
+          const recLabel = result.recommendation === 'PASS' ? 'مؤهَّل للامتحان التأهيلي' : 'غير مؤهَّل';
+          await resend.emails.send({
+            from:    `لاتينو <${FROM_EMAIL}>`,
+            to:      HR_EMAIL.split(',').map(e => e.trim()),
+            subject: `تقرير مقابلة: ${name} — ${role} — ${recLabel} (${result.overallScore}/100)`,
+            html,
+          });
+          console.log(`Report emailed to ${HR_EMAIL} for candidate ${name}`);
+        } catch (mailErr) {
+          console.error('Email send failed:', mailErr);
+        }
+      } else {
+        console.warn('Email not configured (RESEND_API_KEY / HR_EMAIL missing) — report not sent.');
       }
-    } else {
-      console.warn('Email not configured (RESEND_API_KEY / HR_EMAIL missing) — report not sent.');
+
+      // Also log to Google Sheet (parallel — runs even if email fails)
+      await appendReportToSheet({ name, exp, role, questions, answers, result });
+    } catch (err) {
+      console.error('Evaluate (background) error:', err);
     }
-
-    // Return only a minimal confirmation; do NOT send the report to the candidate's browser
-    res.json({ ok: true, emailed });
-
-  } catch (err) {
-    console.error('Evaluate error:', err);
-    res.status(500).json({ error: err.message });
-  }
+  })();
 });
 
 // Build a clean RTL HTML email of the report for HR
@@ -325,5 +419,6 @@ server.listen(PORT, () => {
   console.log(`  Anthropic  : ${process.env.ANTHROPIC_API_KEY ? '✓ configured' : '✗ MISSING'}`);
   console.log(`  Anthropic  : ${process.env.ANTHROPIC_API_KEY ? '✓ configured' : '✗ MISSING'}`);
   console.log(`  Email      : ${(RESEND_API_KEY && HR_EMAIL) ? '✓ → ' + HR_EMAIL : '✗ not configured'}`);
+  console.log(`  Sheets     : ${sheetsClient ? '✓ → ' + GOOGLE_SHEET_ID : '✗ not configured'}`);
   console.log(`  Voice ID   : ${VOICE_ID}\n`);
 });

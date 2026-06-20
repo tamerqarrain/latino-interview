@@ -437,7 +437,7 @@
     </div>
     <div class="field">
       <label>سنوات الخبرة</label>
-      <input type="text" id="sExp" placeholder="مثال: 5 سنوات" autocomplete="off">
+      <input type="number" id="sExp" placeholder="مثال: 5" autocomplete="off" min="0" max="50" inputmode="numeric">
     </div>
     <div class="field">
       <label>الوظيفة المتقدم إليها</label>
@@ -550,7 +550,7 @@ const S = {
   currentAudio: null,
   readTimer: null, readLeft: READ_SECONDS, readOnComplete: null,
   recTimer: null, recLeft: MAX_REC_SECONDS,
-  audioCtx: null, analyser: null, vizFrame: null, recMime: '', playCtx: null,
+  audioCtx: null, analyser: null, vizFrame: null, recMime: '', playCtx: null, ended: false,
 };
 
 const AR = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
@@ -579,12 +579,23 @@ async function beginInterview() {
   const role = document.getElementById('sRole').value;
   const err  = document.getElementById('setupErr');
   if (!name || !exp || !role) { err.textContent = 'يرجى تعبئة جميع الحقول.'; return; }
+  const expNum = parseInt(exp, 10);
+  if (isNaN(expNum) || expNum < 0 || expNum > 50) {
+    err.textContent = 'يرجى إدخال عدد سنوات صحيح بين ٠ و ٥٠.';
+    return;
+  }
+  // Store as a clean spoken phrase: "5 سنوات" / "سنة واحدة"
+  const expClean = expNum === 0 ? 'لا توجد خبرة سابقة'
+                 : expNum === 1 ? 'سنة واحدة'
+                 : expNum === 2 ? 'سنتان'
+                 : expNum <= 10 ? `${toAr(expNum)} سنوات`
+                 : `${toAr(expNum)} سنة`;
   err.textContent = '';
   document.getElementById('btnBegin').disabled = true;
 
   const res = await fetch(`/api/questions/${encodeURIComponent(role)}`);
   S.questions = await res.json();
-  S.name = name; S.exp = exp; S.role = role;
+  S.name = name; S.exp = expClean; S.role = role;
   S.answers = Array(S.questions.length).fill('');
   S.currentQ = 0;
 
@@ -620,6 +631,7 @@ function refreshDots() {
 // ═══════════════════════════════════════════════
 async function speak(text) {
   return new Promise(async (resolve) => {
+    if (S.ended) { resolve(); return; }
     setPhase('speaking');
     try {
       const res = await fetch('/api/speak', {
@@ -627,13 +639,14 @@ async function speak(text) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       });
+      if (S.ended) { resolve(); return; }
       if (!res.ok) { resolve(); return; }
 
       // Use Web Audio API instead of HTMLAudioElement — more reliable MP3 decoder.
       const buf = await res.arrayBuffer();
+      if (S.ended) { resolve(); return; }
       if (!S.playCtx) S.playCtx = new (window.AudioContext || window.webkitAudioContext)();
       const ctx = S.playCtx;
-      // Resume context if browser suspended it
       if (ctx.state === 'suspended') { try { await ctx.resume(); } catch {} }
 
       let decoded;
@@ -643,6 +656,7 @@ async function speak(text) {
         console.error('Audio decode failed:', e);
         resolve(); return;
       }
+      if (S.ended) { resolve(); return; }
 
       const src = ctx.createBufferSource();
       src.buffer = decoded;
@@ -1013,6 +1027,7 @@ async function doOutro() {
 }
 
 async function endEarly() {
+  S.ended = true;
   stopReadCountdown();
   stopRecCountdown();
   stopVisualizer();
@@ -1068,10 +1083,10 @@ async function runEvaluation() {
     console.error('Eval error:', e);
   }
 
-  // Allow starting a new interview after a short pause
+  // Allow starting a new interview almost immediately (server responds instantly now)
   setTimeout(() => {
     document.getElementById('thankNewBtn').style.display = '';
-  }, 2500);
+  }, 1000);
 }
 
 // ═══════════════════════════════════════════════
@@ -1079,7 +1094,7 @@ async function runEvaluation() {
 // ═══════════════════════════════════════════════
 function newInterview() {
   S.name=''; S.exp=''; S.role=''; S.questions=[]; S.answers=[];
-  S.currentQ=0; S.phase='idle';
+  S.currentQ=0; S.phase='idle'; S.ended=false;
   ['sName','sExp'].forEach(id => document.getElementById(id).value='');
   document.getElementById('sRole').value='';
   document.getElementById('btnBegin').disabled=false;
