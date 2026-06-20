@@ -302,13 +302,32 @@ ${qaBlock}
     try {
       const message = await anthropic.messages.create({
         model:      'claude-sonnet-4-6',
-        max_tokens: 2000,
+        max_tokens: 4000,
         messages:   [{ role: 'user', content: prompt }],
       });
 
       const raw    = message.content.map(b => b.text || '').join('');
       const clean  = raw.replace(/```json|```/g, '').trim();
-      const result = JSON.parse(clean);
+
+      // Try to extract just the JSON object — Claude may add preamble or trailing text.
+      // Find the outermost { ... } block.
+      let jsonText = clean;
+      const firstBrace = clean.indexOf('{');
+      const lastBrace  = clean.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        jsonText = clean.slice(firstBrace, lastBrace + 1);
+      }
+
+      let result;
+      try {
+        result = JSON.parse(jsonText);
+      } catch (parseErr) {
+        console.error('JSON parse failed. Stop reason:', message.stop_reason);
+        console.error('Raw response length:', raw.length);
+        console.error('First 200 chars:', raw.slice(0, 200));
+        console.error('Last 200 chars :', raw.slice(-200));
+        return; // exit background processing — can't email/sheet without parsed result
+      }
 
       if (resend && HR_EMAIL) {
         try {
