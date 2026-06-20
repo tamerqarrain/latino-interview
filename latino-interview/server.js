@@ -34,23 +34,59 @@ const resend         = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 const GOOGLE_SHEET_ID            = process.env.GOOGLE_SHEET_ID;
 const GOOGLE_SERVICE_EMAIL       = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const GOOGLE_SERVICE_KEY         = (process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '').replace(/\\n/g, '\n');
+const GOOGLE_SERVICE_JSON        = process.env.GOOGLE_SERVICE_ACCOUNT_JSON; // alternative: paste entire JSON
 const SHEETS_TAB                 = process.env.GOOGLE_SHEET_TAB || 'Sheet1';
 
 let sheetsClient = null;
-if (GOOGLE_SHEET_ID && GOOGLE_SERVICE_EMAIL && GOOGLE_SERVICE_KEY) {
+let sheetsAuth   = null;
+
+async function initSheets() {
+  if (!GOOGLE_SHEET_ID) return;
+
   try {
-    const auth = new google.auth.JWT(
-      GOOGLE_SERVICE_EMAIL,
-      null,
-      GOOGLE_SERVICE_KEY,
-      ['https://www.googleapis.com/auth/spreadsheets']
-    );
-    sheetsClient = google.sheets({ version: 'v4', auth });
-    console.log('Google Sheets: configured for sheet', GOOGLE_SHEET_ID);
+    let credentials;
+
+    if (GOOGLE_SERVICE_JSON) {
+      // Preferred: paste the entire service-account JSON as one env var
+      try {
+        credentials = JSON.parse(GOOGLE_SERVICE_JSON);
+        console.log('Sheets: using GOOGLE_SERVICE_ACCOUNT_JSON');
+      } catch (e) {
+        console.error('Sheets: GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON:', e.message);
+        return;
+      }
+    } else if (GOOGLE_SERVICE_EMAIL && GOOGLE_SERVICE_KEY) {
+      credentials = {
+        client_email: GOOGLE_SERVICE_EMAIL,
+        private_key:  GOOGLE_SERVICE_KEY,
+      };
+      console.log('Sheets: using GOOGLE_SERVICE_ACCOUNT_EMAIL + KEY');
+    } else {
+      console.warn('Sheets: no credentials configured');
+      return;
+    }
+
+    sheetsAuth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    // CRITICAL: explicitly authorize now so we see auth errors at startup, not later.
+    const authClient = await sheetsAuth.getClient();
+    const tokenInfo  = await authClient.getAccessToken();
+    if (!tokenInfo || !tokenInfo.token) {
+      console.error('Sheets: getAccessToken returned empty — auth failed silently');
+      return;
+    }
+
+    sheetsClient = google.sheets({ version: 'v4', auth: sheetsAuth });
+    console.log(`Sheets: ✓ authenticated as ${credentials.client_email} → sheet ${GOOGLE_SHEET_ID}`);
   } catch (e) {
-    console.error('Google Sheets init failed:', e.message);
+    console.error('Sheets init failed:', e.message);
+    if (e.response?.data) console.error('Sheets init detail:', JSON.stringify(e.response.data));
   }
 }
+initSheets();
 
 // Append one row per interview to the Google Sheet (creates header row first time)
 async function appendReportToSheet({ name, exp, role, questions, answers, result }) {

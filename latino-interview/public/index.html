@@ -660,6 +660,7 @@ async function speak(text) {
 
       const src = ctx.createBufferSource();
       src.buffer = decoded;
+      src.playbackRate.value = 1.3; // 30% faster narration
       src.connect(ctx.destination);
       S.currentAudio = src;
       src.onended = () => { S.currentAudio = null; resolve(); };
