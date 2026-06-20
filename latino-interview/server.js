@@ -117,6 +117,12 @@ async function appendReportToSheet({ name, exp, role, questions, answers, result
     console.log(`Sheet: appended row for ${name}`);
   } catch (err) {
     console.error('Sheet append failed:', err.message);
+    if (err.response?.data) {
+      console.error('Sheet error details:', JSON.stringify(err.response.data, null, 2));
+    }
+    if (err.errors) {
+      console.error('Sheet error array:', JSON.stringify(err.errors, null, 2));
+    }
   }
 }
 
