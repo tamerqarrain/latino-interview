@@ -481,6 +481,10 @@
       <input type="number" id="sExp" placeholder="مثال: 5" autocomplete="off" min="0" max="50" inputmode="numeric">
     </div>
     <div class="field">
+      <label>مكان السكن</label>
+      <input type="text" id="sLocation" placeholder="مثال: عمّان — الصويفية" autocomplete="off">
+    </div>
+    <div class="field">
       <label>الوظيفة المتقدم إليها</label>
       <select id="sRole">
         <option value="">— اختر الوظيفة —</option>
@@ -594,7 +598,7 @@ const CIRC = 2 * Math.PI * 26; // 163.4 — SVG circle circumference
 //  STATE
 // ═══════════════════════════════════════════════
 const S = {
-  name: '', exp: '', role: '',
+  name: '', exp: '', role: '', location: '', expectedSalary: '',
   questions: [], answers: [],
   currentQ: 0, phase: 'idle',
   mediaRecorder: null, audioChunks: [],
@@ -626,11 +630,12 @@ function spokenRole(role) {
 //  SETUP
 // ═══════════════════════════════════════════════
 async function beginInterview() {
-  const name = document.getElementById('sName').value.trim();
-  const exp  = document.getElementById('sExp').value.trim();
-  const role = document.getElementById('sRole').value;
-  const err  = document.getElementById('setupErr');
-  if (!name || !exp || !role) { err.textContent = 'يرجى تعبئة جميع الحقول.'; return; }
+  const name     = document.getElementById('sName').value.trim();
+  const exp      = document.getElementById('sExp').value.trim();
+  const location = document.getElementById('sLocation').value.trim();
+  const role     = document.getElementById('sRole').value;
+  const err      = document.getElementById('setupErr');
+  if (!name || !exp || !role || !location) { err.textContent = 'يرجى تعبئة جميع الحقول.'; return; }
   const expNum = parseInt(exp, 10);
   if (isNaN(expNum) || expNum < 0 || expNum > 50) {
     err.textContent = 'يرجى إدخال عدد سنوات صحيح بين ٠ و ٥٠.';
@@ -647,8 +652,9 @@ async function beginInterview() {
 
   const res = await fetch(`/api/questions/${encodeURIComponent(role)}`);
   S.questions = await res.json();
-  S.name = name; S.exp = expClean; S.role = role;
+  S.name = name; S.exp = expClean; S.role = role; S.location = location;
   S.answers = Array(S.questions.length).fill('');
+  S.expectedSalary = '';
   S.currentQ = 0;
 
   document.getElementById('roomName').textContent = name;
@@ -1107,6 +1113,12 @@ async function doneAnswering() {
     return; // candidate answers again; pressing "انتهيت" re-enters this function
   }
 
+  // If we're collecting the salary answer (not a regular question), pass it to the salary callback
+  if (S.onSalaryAnswered) {
+    S.onSalaryAnswered(transcript);
+    return;
+  }
+
   S.answers[S.currentQ] = transcript;
   document.getElementById('liveTranscript').textContent = `"${transcript}"`;
 
@@ -1156,6 +1168,13 @@ async function skipQuestion() {
 async function doOutro() {
   document.getElementById('btnNext').disabled = true;
   document.getElementById('btnSkip').disabled = true;
+
+  // Ask for expected salary FIRST (unless already answered or candidate ended early)
+  if (!S.ended && !S.expectedSalary) {
+    await askExpectedSalary();
+    if (S.ended) return; // user ended interview during salary step
+  }
+
   refreshDots();
 
   const outro = `شُكْراً جَزِيلاً، ${S.name}. هَذَا يَخْتَتِمُ مُقَابَلَتَنَا. لَقَدْ أَجَبْتَ عَلَى جَمِيعِ الْأَسْئِلَةِ. سَنُرَاجِعُ إِجَابَاتِكَ وَنَتَوَاصَلُ مَعَكَ فِي أَقْرَبِ وَقْتٍ. نَتَمَنَّى لَكَ يَوْماً مُوَفَّقاً.`;
@@ -1165,6 +1184,33 @@ async function doOutro() {
   setStatus('blue', 'جارٍ التقييم', 'يحلّل لاتينو إجاباتك ويُعدّ التقرير…');
   setPhase('thinking');
   await runEvaluation();
+}
+
+// Ask the candidate about expected salary — voice OR typed, like other questions
+async function askExpectedSalary() {
+  const question = 'سُؤَالٌ أَخِيرٌ قَبْلَ الْخِتَامِ: مَا هُوَ الرَّاتِبُ الشَّهْرِيُّ الْمُتَوَقَّعُ بِالدِّينَارِ الْأُرْدُنِيِّ؟';
+  const display  = 'سؤال أخير: ما هو الراتب الشهري المتوقع بالدينار الأردني؟';
+
+  setStatus('gold', 'سؤال إضافي', display);
+  showQuestionBox(display);
+  await speak(question);
+  if (S.ended) return;
+
+  hideQuestionBox();
+
+  // Collect answer using the same voice-or-type flow as a normal question
+  return new Promise((resolve) => {
+    startReadCountdown(async () => {
+      if (S.ended) { resolve(); return; }
+      await startRecording();
+    });
+    // Hook into doneAnswering by setting a one-time post-answer callback
+    S.onSalaryAnswered = (text) => {
+      S.expectedSalary = text || '';
+      S.onSalaryAnswered = null;
+      resolve();
+    };
+  });
 }
 
 async function endEarly() {
@@ -1209,7 +1255,11 @@ async function runEvaluation() {
     const res = await fetch('/api/evaluate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: S.name, exp: S.exp, role: S.role, questions: S.questions, answers: S.answers }),
+      body: JSON.stringify({
+        name: S.name, exp: S.exp, role: S.role,
+        location: S.location, expectedSalary: S.expectedSalary,
+        questions: S.questions, answers: S.answers
+      }),
     });
     const data = await res.json();
 
@@ -1238,12 +1288,12 @@ async function runEvaluation() {
 //  RENDER REPORT
 // ═══════════════════════════════════════════════
 function newInterview() {
-  S.name=''; S.exp=''; S.role=''; S.questions=[]; S.answers=[];
+  S.name=''; S.exp=''; S.role=''; S.location=''; S.expectedSalary=''; S.questions=[]; S.answers=[];
   S.currentQ=0; S.phase='idle'; S.ended=false;
   S.typingMode=false;
   if (S.typeTimer) { clearInterval(S.typeTimer); S.typeTimer=null; }
   document.getElementById('typePanel').style.display = 'none';
-  ['sName','sExp'].forEach(id => document.getElementById(id).value='');
+  ['sName','sExp','sLocation'].forEach(id => document.getElementById(id).value='');
   document.getElementById('sRole').value='';
   document.getElementById('btnBegin').disabled=false;
   document.getElementById('setupErr').textContent='';
