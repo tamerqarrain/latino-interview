@@ -271,6 +271,47 @@
   .ctrl.answer-now:hover { background: rgba(142,68,173,0.18); border-color: #b06fd0; }
   .ctrl.danger  { border-color: rgba(231,76,60,.35); color: var(--red); }
   .ctrl.danger:hover:not(:disabled) { background: rgba(231,76,60,.08); }
+
+  .ctrl.secondary { border-color: rgba(142,68,173,.45); color: var(--purple); }
+  .ctrl.secondary:hover:not(:disabled) { background: rgba(142,68,173,.08); border-color: var(--purple); }
+
+  /* Typing mode panel */
+  .type-panel {
+    width: 100%;
+    max-width: 720px;
+    margin: 18px auto 12px;
+    padding: 0 16px;
+  }
+  .type-panel textarea {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    color: var(--text);
+    font-family: 'Tajawal', sans-serif;
+    font-size: 17px;
+    line-height: 1.8;
+    resize: vertical;
+    min-height: 140px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .type-panel textarea:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px var(--gold-glow);
+  }
+  .type-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    padding: 0 4px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  #typeTimer { color: var(--gold); font-weight: 600; }
+  #typeTimer.warning { color: var(--red); }
   .ctrl:disabled { opacity: .3; cursor: default; }
 
   /* ══ THANK YOU ══ */
@@ -509,9 +550,19 @@
     <div class="progress-dots" id="progressDots"></div>
   </div>
 
+  <!-- Typing mode panel (hidden by default, shown when candidate clicks "اكتب") -->
+  <div class="type-panel" id="typePanel" style="display:none;">
+    <textarea id="typeAnswer" placeholder="اكتب إجابتك هنا..." dir="rtl" rows="6"></textarea>
+    <div class="type-meta">
+      <span id="typeTimer">٣:٠٠</span>
+      <span id="typeCharCount">٠ حرف</span>
+    </div>
+  </div>
+
   <div class="room-bottom">
     <button class="ctrl danger" onclick="endEarly()">إنهاء المقابلة</button>
     <button class="ctrl answer-now" id="btnAnswerNow" onclick="answerNow()" style="display:none;">🎙 ابدأ الإجابة الآن</button>
+    <button class="ctrl secondary" id="btnTypeMode" onclick="switchToTyping()" style="display:none;">✍ اكتب الإجابة بدلاً من ذلك</button>
     <button class="ctrl primary" id="btnNext" onclick="doneAnswering()" disabled>✓ انتهيت من الإجابة</button>
     <button class="ctrl" id="btnSkip" onclick="skipQuestion()" disabled>تخطي</button>
   </div>
@@ -551,6 +602,7 @@ const S = {
   readTimer: null, readLeft: READ_SECONDS, readOnComplete: null,
   recTimer: null, recLeft: MAX_REC_SECONDS,
   audioCtx: null, analyser: null, vizFrame: null, recMime: '', playCtx: null, ended: false,
+  typingMode: false, typeTimer: null,
 };
 
 const AR = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
@@ -690,8 +742,9 @@ function startReadCountdown(onComplete) {
   setPhase('reading');
   setStatus('purple', 'وقت التفكير', 'لديك ١٠ ثوانٍ للتفكير، أو اضغط "ابدأ الإجابة الآن".');
 
-  // Show the "answer now" button; allow skip too. Hide "done" until recording starts.
+  // Show the "answer now" + "type instead" buttons; allow skip too. Hide "done" until recording starts.
   document.getElementById('btnAnswerNow').style.display = '';
+  document.getElementById('btnTypeMode').style.display  = '';
   document.getElementById('btnNext').disabled = true;
   document.getElementById('btnSkip').disabled = false;
 
@@ -718,6 +771,70 @@ function answerNow() {
   const cb = S.readOnComplete;
   S.readOnComplete = null;
   if (cb) cb(); // starts recording
+}
+
+// Candidate chose to TYPE the answer instead of speaking
+function switchToTyping() {
+  if (S.phase !== 'reading' && S.phase !== 'listening') return;
+
+  // Stop any countdown / mic / etc.
+  stopReadCountdown();
+  S.readOnComplete = null;
+  if (S.mediaRecorder && S.mediaRecorder.state === 'recording') {
+    try { S.mediaRecorder.stop(); } catch {}
+    try { S.mediaRecorder.stream.getTracks().forEach(t => t.stop()); } catch {}
+  }
+  if (S.vizFrame) cancelAnimationFrame(S.vizFrame);
+  S.mediaRecorder = null;
+
+  // Hide voice controls, show typing controls
+  setPhase('listening');
+  setStatus('purple', 'وضع الكتابة', 'اكتب إجابتك في المربع أدناه، ثم اضغط "انتهيت".');
+  document.getElementById('btnAnswerNow').style.display = 'none';
+  document.getElementById('btnTypeMode').style.display  = 'none';
+  document.getElementById('btnNext').disabled = false;
+  document.getElementById('btnSkip').disabled = false;
+
+  // Show typing panel
+  const panel = document.getElementById('typePanel');
+  const ta    = document.getElementById('typeAnswer');
+  panel.style.display = '';
+  ta.value = '';
+  ta.focus();
+
+  // Track typing mode + character count
+  S.typingMode = true;
+  ta.oninput = () => {
+    document.getElementById('typeCharCount').textContent = toAr(ta.value.length) + ' حرف';
+  };
+
+  // Start a 3-minute typing countdown (same cap as voice)
+  let typeLeft = MAX_REC_SECONDS;
+  const timerEl = document.getElementById('typeTimer');
+  const fmtTime = (s) => `${toAr(Math.floor(s/60))}:${toAr(s%60).padStart(2,'٠')}`;
+  timerEl.textContent = fmtTime(typeLeft);
+  timerEl.classList.remove('warning');
+
+  S.typeTimer = setInterval(() => {
+    typeLeft--;
+    if (typeLeft <= 30) timerEl.classList.add('warning');
+    timerEl.textContent = fmtTime(Math.max(0, typeLeft));
+    if (typeLeft <= 0) {
+      clearInterval(S.typeTimer);
+      S.typeTimer = null;
+      doneAnswering(); // auto-submit when time runs out
+    }
+  }, 1000);
+}
+
+// Called when finishing a typed answer (called by doneAnswering when typingMode is on)
+function finishTyping() {
+  if (S.typeTimer) { clearInterval(S.typeTimer); S.typeTimer = null; }
+  const ta = document.getElementById('typeAnswer');
+  const text = (ta.value || '').trim();
+  document.getElementById('typePanel').style.display = 'none';
+  S.typingMode = false;
+  return text;
 }
 
 function stopReadCountdown() {
@@ -747,6 +864,7 @@ async function startRecording() {
 
   // Switch buttons: hide "answer now", enable "done"
   document.getElementById('btnAnswerNow').style.display = 'none';
+  document.getElementById('btnTypeMode').style.display  = 'none';
   document.getElementById('btnNext').disabled = false;
   document.getElementById('btnSkip').disabled = false;
 
@@ -959,15 +1077,29 @@ async function runQuestion() {
 async function doneAnswering() {
   stopReadCountdown();
   document.getElementById('btnAnswerNow').style.display = 'none';
+  document.getElementById('btnTypeMode').style.display  = 'none';
   document.getElementById('btnNext').disabled = true;
   document.getElementById('btnSkip').disabled = true;
   hideQuestionBox();
 
-  // Stop recording and transcribe
-  const transcript = await stopRecordingAndTranscribe();
+  let transcript;
+  if (S.typingMode) {
+    // Typed answer
+    transcript = finishTyping();
+  } else {
+    // Spoken answer — stop recording and transcribe
+    transcript = await stopRecordingAndTranscribe();
+  }
 
   // If nothing was captured, let the candidate retry instead of silently failing
   if (!transcript || transcript.trim().length < 2) {
+    if (S.typingMode) {
+      // Shouldn't happen — but just in case, re-show the panel
+      setStatus('purple', 'لم تكتب إجابة', 'الرجاء كتابة إجابتك ثم الضغط على "انتهيت".');
+      document.getElementById('typePanel').style.display = '';
+      document.getElementById('btnNext').disabled = false;
+      return;
+    }
     setStatus('purple', 'لم نسمع إجابة', 'لم يُلتقط أي صوت. سيبدأ التسجيل من جديد — تحدّث الآن.');
     document.getElementById('liveTranscript').textContent = '';
     await new Promise(r => setTimeout(r, 1500));
@@ -996,9 +1128,17 @@ async function doneAnswering() {
 async function skipQuestion() {
   stopReadCountdown();
   document.getElementById('btnAnswerNow').style.display = 'none';
+  document.getElementById('btnTypeMode').style.display  = 'none';
   document.getElementById('btnNext').disabled = true;
   document.getElementById('btnSkip').disabled = true;
   hideQuestionBox();
+
+  // Stop typing if active
+  if (S.typingMode) {
+    if (S.typeTimer) { clearInterval(S.typeTimer); S.typeTimer = null; }
+    document.getElementById('typePanel').style.display = 'none';
+    S.typingMode = false;
+  }
 
   // Stop any active recording
   if (S.mediaRecorder && S.mediaRecorder.state !== 'inactive') {
@@ -1037,10 +1177,14 @@ async function endEarly() {
     S.mediaRecorder.stream.getTracks().forEach(t => t.stop());
     try { S.mediaRecorder.stop(); } catch {}
   }
+  if (S.typeTimer) { clearInterval(S.typeTimer); S.typeTimer = null; }
+  document.getElementById('typePanel').style.display = 'none';
+  S.typingMode = false;
   for (let i = S.currentQ; i < S.questions.length; i++) {
     if (!S.answers[i]) S.answers[i] = '[لم يُطرح]';
   }
   document.getElementById('btnAnswerNow').style.display = 'none';
+  document.getElementById('btnTypeMode').style.display  = 'none';
   document.getElementById('btnNext').disabled = true;
   document.getElementById('btnSkip').disabled = true;
   hideQuestionBox();
@@ -1096,6 +1240,9 @@ async function runEvaluation() {
 function newInterview() {
   S.name=''; S.exp=''; S.role=''; S.questions=[]; S.answers=[];
   S.currentQ=0; S.phase='idle'; S.ended=false;
+  S.typingMode=false;
+  if (S.typeTimer) { clearInterval(S.typeTimer); S.typeTimer=null; }
+  document.getElementById('typePanel').style.display = 'none';
   ['sName','sExp'].forEach(id => document.getElementById(id).value='');
   document.getElementById('sRole').value='';
   document.getElementById('btnBegin').disabled=false;
