@@ -89,12 +89,13 @@ async function initSheets() {
 initSheets();
 
 // Append one row per interview to the Google Sheet (creates header row first time)
-async function appendReportToSheet({ name, exp, role, location, expectedSalary, questions, answers, result }) {
+async function appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, questions, answers, result }) {
   if (!sheetsClient) return;
   try {
     // Ensure header row exists
     const HEADER = [
-      'التاريخ والوقت', 'اسم المرشح', 'الوظيفة', 'سنوات الخبرة', 'مكان السكن', 'الراتب المتوقع (دينار)',
+      'التاريخ والوقت', 'اسم المرشح', 'البريد الإلكتروني', 'رقم الهاتف',
+      'الوظيفة', 'سنوات الخبرة', 'مكان السكن', 'الراتب المتوقع (دينار)',
       'النتيجة', 'التقدير', 'القرار', 'سبب القرار', 'الملخص التنفيذي',
       'نقاط القوة', 'مجالات التطوير',
       'س1 سؤال', 'س1 إجابة', 'س1 درجة', 'س1 تقييم',
@@ -125,7 +126,7 @@ async function appendReportToSheet({ name, exp, role, location, expectedSalary, 
     // Build the row
     const date = new Date().toLocaleString('ar-EG', { timeZone: 'Asia/Amman' });
     const row = [
-      date, name, role, exp, location || '', expectedSalary || '',
+      date, name, email || '', phone || '', role, exp, location || '', expectedSalary || '',
       result.overallScore, result.grade,
       result.recommendation === 'PASS' ? 'مؤهَّل للامتحان التأهيلي' : 'غير مؤهَّل',
       result.recommendationReason || '',
@@ -304,7 +305,7 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
 //  EVALUATE  (Claude — Arabic output)
 // ─────────────────────────────────────────────────────
 app.post('/api/evaluate', async (req, res) => {
-  const { name, exp, role, location, expectedSalary, questions, answers } = req.body;
+  const { name, email, phone, exp, role, location, expectedSalary, questions, answers } = req.body;
 
   // Respond to the candidate INSTANTLY so the thank-you screen doesn't hang.
   // The evaluation + email then run in the background.
@@ -373,7 +374,7 @@ ${qaBlock}
 
       if (resend && HR_EMAIL) {
         try {
-          const html = buildReportEmail({ name, exp, role, location, expectedSalary, questions, answers, result });
+          const html = buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, questions, answers, result });
           const recLabel = result.recommendation === 'PASS' ? 'مؤهَّل للامتحان التأهيلي' : 'غير مؤهَّل';
           await resend.emails.send({
             from:    `لاتينو <${FROM_EMAIL}>`,
@@ -390,7 +391,7 @@ ${qaBlock}
       }
 
       // Also log to Google Sheet (parallel — runs even if email fails)
-      await appendReportToSheet({ name, exp, role, location, expectedSalary, questions, answers, result });
+      await appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, questions, answers, result });
     } catch (err) {
       console.error('Evaluate (background) error:', err);
     }
@@ -398,7 +399,7 @@ ${qaBlock}
 });
 
 // Build a clean RTL HTML email of the report for HR
-function buildReportEmail({ name, exp, role, location, expectedSalary, questions, answers, result }) {
+function buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, questions, answers, result }) {
   const { overallScore, grade, summary, questionEvals, strengths, areasForGrowth, recommendation, recommendationReason } = result;
   const pass     = recommendation === 'PASS';
   const recColor = pass ? '#27ae60' : '#e74c3c';
@@ -432,7 +433,9 @@ function buildReportEmail({ name, exp, role, location, expectedSalary, questions
           <td style="vertical-align:top;">
             <div style="font-size:24px;font-weight:bold;color:#1a2840;">${name}</div>
             <div style="color:#666;font-size:14px;margin-top:4px;">${role} · ${exp}</div>
-            ${location ? `<div style="color:#666;font-size:13px;margin-top:6px;">📍 ${location}</div>` : ''}
+            ${email ? `<div style="color:#666;font-size:13px;margin-top:6px;">📧 <a href="mailto:${email}" style="color:#1a2840;text-decoration:none;direction:ltr;display:inline-block;">${email}</a></div>` : ''}
+            ${phone ? `<div style="color:#666;font-size:13px;margin-top:4px;">📱 <a href="tel:${phone}" style="color:#1a2840;text-decoration:none;direction:ltr;display:inline-block;">${phone}</a></div>` : ''}
+            ${location ? `<div style="color:#666;font-size:13px;margin-top:4px;">📍 ${location}</div>` : ''}
             ${expectedSalary ? `<div style="color:#666;font-size:13px;margin-top:4px;">💰 الراتب المتوقع: ${expectedSalary}</div>` : ''}
           </td>
           <td style="text-align:left;vertical-align:top;">

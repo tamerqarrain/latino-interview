@@ -568,6 +568,14 @@
       <input type="text" id="sName" placeholder="مثال: سارة الحسن" autocomplete="off">
     </div>
     <div class="field">
+      <label>البريد الإلكتروني</label>
+      <input type="email" id="sEmail" placeholder="example@email.com" autocomplete="off" dir="ltr" style="text-align:left;">
+    </div>
+    <div class="field">
+      <label>رقم الهاتف</label>
+      <input type="tel" id="sPhone" placeholder="مثال: 0791234567" autocomplete="off" dir="ltr" inputmode="tel" style="text-align:left;">
+    </div>
+    <div class="field">
       <label>سنوات الخبرة</label>
       <input type="number" id="sExp" placeholder="مثال: 5" autocomplete="off" min="0" max="50" inputmode="numeric">
     </div>
@@ -704,11 +712,17 @@ const READ_SECONDS = 10;   // thinking/reading time after question is spoken
 const MAX_REC_SECONDS = 180; // hard cap on answer recording (3 minutes)
 const CIRC = 2 * Math.PI * 26; // 163.4 — SVG circle circumference
 
+// ── INPUT MODE ────────────────────────────────────────────
+// false → typing only (text editor is the default + only mode)
+// true  → original voice-first flow with optional "type instead" button
+// Flip to true to re-enable mic/recording for candidates.
+const USE_VOICE_INPUT = false;
+
 // ═══════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════
 const S = {
-  name: '', exp: '', role: '', location: '', expectedSalary: '',
+  name: '', email: '', phone: '', exp: '', role: '', location: '', expectedSalary: '',
   questions: [], answers: [],
   currentQ: 0, phase: 'idle',
   mediaRecorder: null, audioChunks: [],
@@ -741,11 +755,27 @@ function spokenRole(role) {
 // ═══════════════════════════════════════════════
 async function beginInterview() {
   const name     = document.getElementById('sName').value.trim();
+  const email    = document.getElementById('sEmail').value.trim();
+  const phone    = document.getElementById('sPhone').value.trim();
   const exp      = document.getElementById('sExp').value.trim();
   const location = document.getElementById('sLocation').value.trim();
   const role     = document.getElementById('sRole').value;
   const err      = document.getElementById('setupErr');
-  if (!name || !exp || !role || !location) { err.textContent = 'يرجى تعبئة جميع الحقول.'; return; }
+  if (!name || !email || !phone || !exp || !role || !location) {
+    err.textContent = 'يرجى تعبئة جميع الحقول.';
+    return;
+  }
+  // Email format check
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    err.textContent = 'الرجاء إدخال بريد إلكتروني صحيح.';
+    return;
+  }
+  // Phone: lenient check — accepts Jordan formats (07x..., +9627..., etc.). At least 7 digits.
+  const phoneDigits = phone.replace(/\D/g, '');
+  if (phoneDigits.length < 7 || phoneDigits.length > 15) {
+    err.textContent = 'الرجاء إدخال رقم هاتف صحيح.';
+    return;
+  }
   const expNum = parseInt(exp, 10);
   if (isNaN(expNum) || expNum < 0 || expNum > 50) {
     err.textContent = 'يرجى إدخال عدد سنوات صحيح بين ٠ و ٥٠.';
@@ -762,7 +792,8 @@ async function beginInterview() {
 
   const res = await fetch(`/api/questions/${encodeURIComponent(role)}`);
   S.questions = await res.json();
-  S.name = name; S.exp = expClean; S.role = role; S.location = location;
+  S.name = name; S.email = email; S.phone = phone;
+  S.exp = expClean; S.role = role; S.location = location;
   S.answers = Array(S.questions.length).fill('');
   S.expectedSalary = '';
   S.currentQ = 0;
@@ -889,9 +920,10 @@ function answerNow() {
   if (cb) cb(); // starts recording
 }
 
-// Candidate chose to TYPE the answer instead of speaking
+// Candidate chose to TYPE the answer instead of speaking (or default in text-only mode)
 function switchToTyping() {
-  if (S.phase !== 'reading' && S.phase !== 'listening') return;
+  // Allow from reading/listening (voice-mode opt-in) or from speaking (text-only auto-route)
+  if (S.phase === 'thinking' || S.phase === 'idle') return;
 
   // Stop any countdown / mic / etc.
   stopReadCountdown();
@@ -1183,11 +1215,16 @@ async function runQuestion() {
 
   await speak(fullText); // blocks until ElevenLabs audio finishes (uses tashkeel)
 
-  // ── PHASE 2: 60s reading/thinking countdown ──
-  // When countdown ends → auto-start recording
-  startReadCountdown(() => {
-    startRecording();
-  });
+  // ── PHASE 2: collect the answer ──
+  if (USE_VOICE_INPUT) {
+    // Voice-first flow: 10s think countdown, then recording auto-starts
+    startReadCountdown(() => {
+      startRecording();
+    });
+  } else {
+    // Text-only flow: skip directly to typing panel
+    switchToTyping();
+  }
 }
 
 async function doneAnswering() {
@@ -1321,10 +1358,14 @@ async function askExpectedSalary() {
       }
     }, 300);
 
-    startReadCountdown(async () => {
-      if (S.ended) { clearInterval(endCheck); resolve(); return; }
-      await startRecording();
-    });
+    if (USE_VOICE_INPUT) {
+      startReadCountdown(async () => {
+        if (S.ended) { clearInterval(endCheck); resolve(); return; }
+        await startRecording();
+      });
+    } else {
+      switchToTyping();
+    }
     S.onSalaryAnswered = (text) => {
       clearInterval(endCheck);
       S.expectedSalary = text || '';
@@ -1395,7 +1436,8 @@ async function runEvaluation() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: S.name, exp: S.exp, role: S.role,
+        name: S.name, email: S.email, phone: S.phone,
+        exp: S.exp, role: S.role,
         location: S.location, expectedSalary: S.expectedSalary,
         questions: S.questions, answers: S.answers
       }),
@@ -1427,12 +1469,12 @@ async function runEvaluation() {
 //  RENDER REPORT
 // ═══════════════════════════════════════════════
 function newInterview() {
-  S.name=''; S.exp=''; S.role=''; S.location=''; S.expectedSalary=''; S.questions=[]; S.answers=[];
+  S.name=''; S.email=''; S.phone=''; S.exp=''; S.role=''; S.location=''; S.expectedSalary=''; S.questions=[]; S.answers=[];
   S.currentQ=0; S.phase='idle'; S.ended=false;
   S.typingMode=false;
   if (S.typeTimer) { clearInterval(S.typeTimer); S.typeTimer=null; }
   document.getElementById('typePanel').style.display = 'none';
-  ['sName','sExp','sLocation'].forEach(id => document.getElementById(id).value='');
+  ['sName','sEmail','sPhone','sExp','sLocation'].forEach(id => document.getElementById(id).value='');
   document.getElementById('sRole').value='';
   document.getElementById('btnBegin').disabled=false;
   document.getElementById('setupErr').textContent='';
