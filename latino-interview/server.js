@@ -9,6 +9,7 @@ const path       = require('path');
 const { Resend } = require('resend');
 const { google } = require('googleapis');
 const QUESTIONS  = require('./questions');
+const ASSESSMENTS = require('./assessments');
 
 const app    = express();
 const server = http.createServer(app);
@@ -88,14 +89,84 @@ async function initSheets() {
 }
 initSheets();
 
+// ─────────────────────────────────────────────────────
+//  ASSESSMENT GRADING (via Claude)
+// ─────────────────────────────────────────────────────
+// Sends the full assessment + candidate selections to Claude for grading.
+// Returns: { score, total, percentage, perQuestion: [{ correct, selected, isCorrect, explanation }] }
+async function gradeAssessment({ subject, candidateAnswers }) {
+  const qs = ASSESSMENTS[subject];
+  if (!qs || qs.length === 0) throw new Error(`No assessment questions found for subject: ${subject}`);
+
+  // If any question has an explicit `answer` key, use it; otherwise ask Claude.
+  // For now: send everything to Claude (it can handle pedagogy + science accurately).
+  const qBlock = qs.map((item, i) => {
+    const sel = candidateAnswers[i] || '(لم تتم الإجابة)';
+    return `س${i + 1}: ${item.q}\nA) ${item.options.A}\nB) ${item.options.B}\nC) ${item.options.C}\nD) ${item.options.D}\nاختيار المرشح: ${sel}`;
+  }).join('\n\n');
+
+  const subjectName = subject === 'English' ? 'اللغة الإنجليزية' : subject;
+  const prompt = `أنت مُصحِّح خبير في مادة ${subjectName} ضمن مقابلة توظيف معلمين في الأردن. مهمتك تحديد الإجابة الصحيحة لكل سؤال متعدد الخيارات أدناه (A أو B أو C أو D)، ثم تصحيح إجابات المرشح.
+
+للأسئلة العلمية/الموضوعية: اعتمد المعرفة العلمية الصحيحة.
+للأسئلة التربوية/الموقفية: اعتمد أفضل الممارسات التربوية المعترف بها عالمياً (مثل إطار TIMSS وأدبيات إدارة الصف).
+
+الأسئلة:
+${qBlock}
+
+أعد JSON صحيحاً فقط — بدون markdown أو نصوص خارجية:
+{
+  "perQuestion": [
+    { "correct": "A|B|C|D", "isCorrect": true|false, "explanation": "<شرح موجز للإجابة الصحيحة بجملة واحدة>" }
+  ],
+  "score": <عدد الإجابات الصحيحة>,
+  "total": ${qs.length},
+  "percentage": <النسبة المئوية كعدد صحيح 0-100>
+}
+
+تأكد أن مصفوفة perQuestion تحتوي على ${qs.length} عناصر بالترتيب نفسه.`;
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 6000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const raw   = message.content.map(b => b.text || '').join('');
+  const clean = raw.replace(/```json|```/g, '').trim();
+  let jsonText = clean;
+  const firstBrace = clean.indexOf('{');
+  const lastBrace  = clean.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    jsonText = clean.slice(firstBrace, lastBrace + 1);
+  }
+
+  const parsed = JSON.parse(jsonText);
+
+  // Fold the candidate's selection into each perQuestion entry
+  parsed.perQuestion = (parsed.perQuestion || []).map((pq, i) => ({
+    ...pq,
+    selected: candidateAnswers[i] || '',
+  }));
+
+  // Recompute score defensively in case Claude miscounted
+  const computedScore = parsed.perQuestion.filter(pq => pq.isCorrect).length;
+  parsed.score      = computedScore;
+  parsed.total      = qs.length;
+  parsed.percentage = qs.length > 0 ? Math.round((computedScore / qs.length) * 100) : 0;
+
+  return parsed;
+}
+
 // Append one row per interview to the Google Sheet (creates header row first time)
-async function appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, questions, answers, result }) {
+async function appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result }) {
   if (!sheetsClient) return;
   try {
     // Ensure header row exists
     const HEADER = [
       'التاريخ والوقت', 'اسم المرشح', 'البريد الإلكتروني', 'رقم الهاتف',
       'الوظيفة', 'سنوات الخبرة', 'مكان السكن', 'الراتب المتوقع (دينار)',
+      'مادة التقييم', 'نتيجة التقييم', 'النسبة المئوية للتقييم',
       'النتيجة', 'التقدير', 'القرار', 'سبب القرار', 'الملخص التنفيذي',
       'نقاط القوة', 'مجالات التطوير',
       'س1 سؤال', 'س1 إجابة', 'س1 درجة', 'س1 تقييم',
@@ -127,6 +198,9 @@ async function appendReportToSheet({ name, email, phone, exp, role, location, ex
     const date = new Date().toLocaleString('ar-EG', { timeZone: 'Asia/Amman' });
     const row = [
       date, name, email || '', phone || '', role, exp, location || '', expectedSalary || '',
+      subject || '',
+      assessmentResult ? `${assessmentResult.score}/${assessmentResult.total}` : '',
+      assessmentResult ? `${assessmentResult.percentage}%` : '',
       result.overallScore, result.grade,
       result.recommendation === 'PASS' ? 'مؤهَّل للامتحان التأهيلي' : 'غير مؤهَّل',
       result.recommendationReason || '',
@@ -186,6 +260,19 @@ app.get('/api/questions/:role', (req, res) => {
   const qs   = QUESTIONS[role];
   if (!qs) return res.status(404).json({ error: 'Unknown role' });
   res.json(qs);
+});
+
+// ─────────────────────────────────────────────────────
+//  ASSESSMENT  (Subject-specific MCQ for teacher roles)
+// ─────────────────────────────────────────────────────
+app.get('/api/assessment/:subject', (req, res) => {
+  const subject = decodeURIComponent(req.params.subject);
+  const qs      = ASSESSMENTS[subject];
+  if (!qs) return res.status(404).json({ error: 'Unknown subject' });
+  // Return questions WITHOUT answer keys (clients should never see correct answers).
+  // Strip any `answer` field if present.
+  const cleaned = qs.map(({ q, options }) => ({ q, options }));
+  res.json(cleaned);
 });
 
 // ─────────────────────────────────────────────────────
@@ -305,7 +392,11 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
 //  EVALUATE  (Claude — Arabic output)
 // ─────────────────────────────────────────────────────
 app.post('/api/evaluate', async (req, res) => {
-  const { name, email, phone, exp, role, location, expectedSalary, questions, answers } = req.body;
+  const {
+    name, email, phone, exp, role, location, expectedSalary,
+    questions, answers,
+    subject, assessmentAnswers, // NEW: { subject: 'علوم', assessmentAnswers: ['A','D',...] }
+  } = req.body;
 
   // Respond to the candidate INSTANTLY so the thank-you screen doesn't hang.
   // The evaluation + email then run in the background.
@@ -313,6 +404,18 @@ app.post('/api/evaluate', async (req, res) => {
 
   // ── BACKGROUND PROCESSING ───────────────────────
   (async () => {
+    // 1) Grade the subject assessment in parallel (if provided)
+    let assessmentResult = null;
+    if (subject && Array.isArray(assessmentAnswers) && assessmentAnswers.length > 0) {
+      try {
+        assessmentResult = await gradeAssessment({ subject, candidateAnswers: assessmentAnswers });
+        console.log(`Assessment graded for ${name} (${subject}): ${assessmentResult.score}/${assessmentResult.total}`);
+      } catch (err) {
+        console.error('Assessment grading failed:', err.message);
+        assessmentResult = { error: err.message, score: 0, total: 0, percentage: 0, perQuestion: [] };
+      }
+    }
+
     const qaBlock = questions.map((q, i) =>
       `س${i+1} [${q.cat}]: ${q.q}\nالإجابة: ${answers[i] || '(لم يتم الإجابة)'}`
     ).join('\n\n');
@@ -374,7 +477,7 @@ ${qaBlock}
 
       if (resend && HR_EMAIL) {
         try {
-          const html = buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, questions, answers, result });
+          const html = buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result });
           const recLabel = result.recommendation === 'PASS' ? 'مؤهَّل للامتحان التأهيلي' : 'غير مؤهَّل';
           await resend.emails.send({
             from:    `لاتينو <${FROM_EMAIL}>`,
@@ -391,7 +494,7 @@ ${qaBlock}
       }
 
       // Also log to Google Sheet (parallel — runs even if email fails)
-      await appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, questions, answers, result });
+      await appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result });
     } catch (err) {
       console.error('Evaluate (background) error:', err);
     }
@@ -399,7 +502,7 @@ ${qaBlock}
 });
 
 // Build a clean RTL HTML email of the report for HR
-function buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, questions, answers, result }) {
+function buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result }) {
   const { overallScore, grade, summary, questionEvals, strengths, areasForGrowth, recommendation, recommendationReason } = result;
   const pass     = recommendation === 'PASS';
   const recColor = pass ? '#27ae60' : '#e74c3c';
@@ -421,6 +524,56 @@ function buildReportEmail({ name, email, phone, exp, role, location, expectedSal
   const strList  = (strengths||[]).map(s => `<li>${s}</li>`).join('');
   const growList = (areasForGrowth||[]).map(g => `<li>${g}</li>`).join('');
 
+  // ── Subject assessment block (only present for teacher roles with a subject) ──
+  const subjectName = subject === 'English' ? 'اللغة الإنجليزية' : subject;
+  let assessmentBlock = '';
+  if (subject && assessmentResult && assessmentResult.total > 0) {
+    const pct      = assessmentResult.percentage;
+    const pctColor = pct >= 70 ? '#27ae60' : pct >= 50 ? '#e8a020' : '#e74c3c';
+    const perQ     = (assessmentResult.perQuestion || []);
+    const allAssessmentQs = ASSESSMENTS[subject] || [];
+
+    const qRows = allAssessmentQs.map((item, i) => {
+      const pq      = perQ[i] || {};
+      const correct = pq.correct || '?';
+      const sel     = pq.selected || '—';
+      const ok      = pq.isCorrect;
+      const mark    = ok ? '✓' : '✗';
+      const markBg  = ok ? '#eafaf0' : '#fdeeec';
+      const markFg  = ok ? '#27ae60' : '#e74c3c';
+      return `<tr>
+        <td style="padding:10px;border-bottom:1px solid #eee;vertical-align:top;">
+          <div style="display:flex;align-items:flex-start;gap:8px;">
+            <span style="background:${markBg};color:${markFg};border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;flex-shrink:0;">${mark}</span>
+            <div style="flex:1;">
+              <div style="font-weight:bold;color:#1a2840;font-size:13px;margin-bottom:4px;">س${i+1}: ${item.q}</div>
+              <div style="color:#666;font-size:12px;">
+                إجابة المرشح: <strong style="color:${markFg};">${sel}</strong>
+                ${ok ? '' : ` · الإجابة الصحيحة: <strong style="color:#27ae60;">${correct}</strong>`}
+              </div>
+              ${pq.explanation ? `<div style="color:#888;font-size:12px;margin-top:4px;font-style:italic;">${pq.explanation}</div>` : ''}
+            </div>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    assessmentBlock = `
+      <div style="background:#f9f9f9;border-radius:8px;padding:18px;margin-bottom:24px;border:1px solid #eee;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-weight:bold;color:#1a2840;font-size:16px;">📝 تقييم مادة ${subjectName}</div>
+          <div style="background:${pctColor};color:#fff;padding:6px 14px;border-radius:20px;font-weight:bold;font-size:14px;">${assessmentResult.score}/${assessmentResult.total} · ${pct}%</div>
+        </div>
+        <div style="color:#666;font-size:13px;line-height:1.6;">
+          أجاب المرشح بشكل صحيح على ${assessmentResult.score} من أصل ${assessmentResult.total} سؤالاً في تقييم مادة ${subjectName}.
+        </div>
+      </div>
+
+      <div style="font-weight:bold;color:#c9a84c;font-size:13px;border-bottom:1px solid #eee;padding-bottom:8px;margin-bottom:12px;">تفاصيل تقييم مادة ${subjectName}</div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">${qRows}</table>
+    `;
+  }
+
   return `<!DOCTYPE html><html dir="rtl" lang="ar"><body style="font-family:Tahoma,Arial,sans-serif;background:#f0f0f0;margin:0;padding:20px;">
   <div style="max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
     <div style="background:#0d1520;color:#c9a84c;padding:24px 28px;">
@@ -432,7 +585,7 @@ function buildReportEmail({ name, email, phone, exp, role, location, expectedSal
         <tr>
           <td style="vertical-align:top;">
             <div style="font-size:24px;font-weight:bold;color:#1a2840;">${name}</div>
-            <div style="color:#666;font-size:14px;margin-top:4px;">${role} · ${exp}</div>
+            <div style="color:#666;font-size:14px;margin-top:4px;">${role}${subject ? ` · مادة ${subjectName}` : ''} · ${exp}</div>
             ${email ? `<div style="color:#666;font-size:13px;margin-top:6px;">📧 <a href="mailto:${email}" style="color:#1a2840;text-decoration:none;direction:ltr;display:inline-block;">${email}</a></div>` : ''}
             ${phone ? `<div style="color:#666;font-size:13px;margin-top:4px;">📱 <a href="tel:${phone}" style="color:#1a2840;text-decoration:none;direction:ltr;display:inline-block;">${phone}</a></div>` : ''}
             ${location ? `<div style="color:#666;font-size:13px;margin-top:4px;">📍 ${location}</div>` : ''}
@@ -449,6 +602,8 @@ function buildReportEmail({ name, email, phone, exp, role, location, expectedSal
         <div style="font-size:18px;font-weight:bold;color:${recColor};">${recLabel}</div>
         <div style="color:#555;font-size:14px;margin-top:8px;line-height:1.6;">${recommendationReason||''}</div>
       </div>
+
+      ${assessmentBlock}
 
       <div style="font-weight:bold;color:#c9a84c;font-size:13px;border-bottom:1px solid #eee;padding-bottom:8px;margin-bottom:12px;">الملخص التنفيذي</div>
       <div style="color:#333;line-height:1.8;font-size:15px;margin-bottom:24px;">${summary||''}</div>

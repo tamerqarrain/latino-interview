@@ -432,6 +432,93 @@
     .thank-orb span { font-size: 36px; }
   }
 
+  /* ══ ASSESSMENT WIZARD ══ */
+  .assess-shell {
+    max-width: 760px; width: 100%; padding: 28px 24px;
+    display: flex; flex-direction: column; gap: 24px;
+  }
+  .assess-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border);
+  }
+  .assess-progress { flex: 1; }
+  .assess-progress > span {
+    display: block; color: var(--text-dim); font-size: 13px; margin-bottom: 8px;
+  }
+  .assess-bar {
+    height: 6px; background: rgba(255,255,255,0.06); border-radius: 99px; overflow: hidden;
+  }
+  .assess-bar-fill {
+    height: 100%; background: linear-gradient(90deg, var(--gold), #ffd76b);
+    border-radius: 99px; transition: width 0.3s ease;
+  }
+  .assess-timer {
+    font-family: 'Courier New', monospace;
+    font-size: 18px; font-weight: 700; color: var(--gold);
+    padding: 8px 16px; background: rgba(201,168,76,0.08);
+    border: 1px solid rgba(201,168,76,0.3); border-radius: 8px;
+    min-width: 80px; text-align: center;
+  }
+  .assess-timer.warn { color: #ff9d40; border-color: rgba(255,157,64,0.4); background: rgba(255,157,64,0.08); }
+  .assess-timer.danger {
+    color: #ff5050; border-color: rgba(255,80,80,0.5); background: rgba(255,80,80,0.1);
+    animation: pulse-danger 1s ease-in-out infinite;
+  }
+  @keyframes pulse-danger { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+  .assess-body {
+    background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px; min-height: 320px;
+  }
+  .assess-qtext {
+    font-size: 17px; line-height: 1.9; color: var(--text);
+    margin-bottom: 24px; font-weight: 500;
+  }
+  .assess-options {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .assess-option {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 16px 18px; cursor: pointer; user-select: none;
+    background: rgba(255,255,255,0.03);
+    border: 2px solid var(--border); border-radius: 12px;
+    transition: all 0.18s ease;
+  }
+  .assess-option:hover { border-color: rgba(201,168,76,0.4); background: rgba(201,168,76,0.05); }
+  .assess-option.selected {
+    border-color: var(--gold);
+    background: linear-gradient(135deg, rgba(201,168,76,0.18), rgba(201,168,76,0.05));
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
+  }
+  .assess-option-letter {
+    width: 32px; height: 32px; flex-shrink: 0;
+    border-radius: 50%; background: rgba(255,255,255,0.06);
+    border: 1.5px solid var(--border);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; color: var(--text-dim);
+    direction: ltr;
+  }
+  .assess-option.selected .assess-option-letter {
+    background: var(--gold); border-color: var(--gold); color: #0d1520;
+  }
+  .assess-option-text {
+    flex: 1; font-size: 15px; line-height: 1.7; color: var(--text);
+  }
+
+  .assess-footer {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding-top: 8px;
+  }
+  .assess-summary { font-size: 13px; color: var(--text-dim); }
+
+  @media (max-width: 700px) {
+    .assess-shell { padding: 16px; }
+    .assess-body { padding: 18px; }
+    .assess-qtext { font-size: 15px; }
+    .assess-option-text { font-size: 14px; }
+    .assess-timer { font-size: 15px; padding: 6px 12px; min-width: 70px; }
+  }
+
   /* ══ REPORT ══ */
   #reportScreen { overflow-y: auto; align-items: flex-start; padding: 60px 24px 80px; }
   .report-inner { max-width: 760px; width: 100%; margin: 0 auto; }
@@ -585,12 +672,22 @@
     </div>
     <div class="field">
       <label>الوظيفة المتقدم إليها</label>
-      <select id="sRole">
+      <select id="sRole" onchange="onRoleChange()">
         <option value="">— اختر الوظيفة —</option>
         <option value="معلم رياض أطفال">معلم رياض أطفال</option>
         <option value="معلّم صف 1-3">معلّم صف ١-٣</option>
         <option value="معلّم صف 4-10">معلّم صف ٤-١٠</option>
         <option value="معلّم صف 11-12">معلّم صف ١١-١٢</option>
+      </select>
+    </div>
+    <div class="field" id="subjectField" style="display:none;">
+      <label>مادة التقييم</label>
+      <select id="sSubject">
+        <option value="">— اختر مادة التقييم —</option>
+        <option value="علوم">علوم</option>
+        <option value="عربي">لغة عربية</option>
+        <option value="رياضيات">رياضيات</option>
+        <option value="English">English</option>
       </select>
     </div>
     <div class="setup-error" id="setupErr"></div>
@@ -690,6 +787,60 @@
   </div>
 </div>
 
+<!-- ══ ASSESSMENT INTRO ══ -->
+<div class="screen hidden" id="assessIntroScreen">
+  <div class="thank-card fade-in" style="max-width:580px;">
+    <div class="thank-orb" style="background:linear-gradient(135deg,#c9a84c,#a08530);"><span>📝</span></div>
+    <h1 id="assessIntroTitle">تقييم مادة التخصص</h1>
+    <p id="assessIntroMsg" style="line-height:1.9;">
+      ستبدأ الآن مرحلة تقييم مادة التخصص. ستظهر لك ٢٥ سؤالاً متعدد الخيارات،
+      <strong>سؤال واحد في كل شاشة</strong>، واختر الإجابة الأنسب من بين الخيارات الأربعة.
+      <br><br>
+      <strong style="color:#c9a84c;">⏱ المدة المسموحة: ٣٠ دقيقة</strong>
+      <br>
+      يمكنك العودة إلى الأسئلة السابقة لتعديل إجاباتك قبل التسليم النهائي.
+    </p>
+    <button class="rpt-btn primary" style="margin-top:24px;font-size:16px;padding:14px 32px;" onclick="startAssessment()">ابدأ التقييم</button>
+  </div>
+</div>
+
+<!-- ══ ASSESSMENT WIZARD ══ -->
+<div class="screen hidden" id="assessScreen">
+  <div class="assess-shell">
+    <div class="assess-header">
+      <div class="assess-progress">
+        <span id="assessCounter">السؤال ١ من ٢٥</span>
+        <div class="assess-bar"><div class="assess-bar-fill" id="assessBarFill" style="width:4%;"></div></div>
+      </div>
+      <div class="assess-timer" id="assessTimer">٣٠:٠٠</div>
+    </div>
+
+    <div class="assess-body">
+      <div class="assess-qtext" id="assessQText">…</div>
+      <div class="assess-options" id="assessOptions"></div>
+    </div>
+
+    <div class="assess-footer">
+      <button class="ctrl" id="assessPrev" onclick="assessPrev()">السابق</button>
+      <div class="assess-summary" id="assessSummary">٠ من ٢٥ تمت الإجابة</div>
+      <button class="ctrl main primary" id="assessNext" onclick="assessNext()">التالي</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ASSESSMENT SUBMIT CONFIRMATION ══ -->
+<div id="assessSubmitOverlay" class="modal-overlay" style="display:none;" onclick="cancelAssessSubmit()">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-icon">✓</div>
+    <div class="modal-title">تسليم التقييم؟</div>
+    <div class="modal-text" id="assessSubmitText">هل أنت متأكد من تسليم إجاباتك النهائية؟ لن تتمكن من العودة بعد التسليم.</div>
+    <div class="modal-actions">
+      <button class="modal-btn cancel" onclick="cancelAssessSubmit()">إلغاء — متابعة المراجعة</button>
+      <button class="modal-btn confirm" style="background:#27ae60;" onclick="confirmAssessSubmit()">نعم، سلِّم الإجابات</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ THANK YOU (candidate-facing) ══ -->
 <div class="screen hidden" id="thankScreen">
   <div class="thank-card fade-in">
@@ -710,6 +861,7 @@
 // ═══════════════════════════════════════════════
 const READ_SECONDS = 10;   // thinking/reading time after question is spoken
 const MAX_REC_SECONDS = 180; // hard cap on answer recording (3 minutes)
+const ASSESS_SECONDS = 30 * 60; // 30 minutes for the subject assessment
 const CIRC = 2 * Math.PI * 26; // 163.4 — SVG circle circumference
 
 // ── INPUT MODE ────────────────────────────────────────────
@@ -723,6 +875,9 @@ const USE_VOICE_INPUT = false;
 // ═══════════════════════════════════════════════
 const S = {
   name: '', email: '', phone: '', exp: '', role: '', location: '', expectedSalary: '',
+  subject: '',                                                   // selected subject (Teachers only)
+  assessmentQuestions: [], assessmentAnswers: [], assessmentIdx: 0,
+  assessmentTimer: null, assessmentLeft: ASSESS_SECONDS,
   questions: [], answers: [],
   currentQ: 0, phase: 'idle',
   mediaRecorder: null, audioChunks: [],
@@ -753,6 +908,16 @@ function spokenRole(role) {
 // ═══════════════════════════════════════════════
 //  SETUP
 // ═══════════════════════════════════════════════
+// Show the subject dropdown only when a teacher role (not KG) is picked.
+function onRoleChange() {
+  const role = document.getElementById('sRole').value;
+  const wrap = document.getElementById('subjectField');
+  const sel  = document.getElementById('sSubject');
+  const needsSubject = role && role !== 'معلم رياض أطفال';
+  wrap.style.display = needsSubject ? '' : 'none';
+  if (!needsSubject) sel.value = '';
+}
+
 async function beginInterview() {
   const name     = document.getElementById('sName').value.trim();
   const email    = document.getElementById('sEmail').value.trim();
@@ -760,9 +925,16 @@ async function beginInterview() {
   const exp      = document.getElementById('sExp').value.trim();
   const location = document.getElementById('sLocation').value.trim();
   const role     = document.getElementById('sRole').value;
+  const subject  = document.getElementById('sSubject').value;
   const err      = document.getElementById('setupErr');
   if (!name || !email || !phone || !exp || !role || !location) {
     err.textContent = 'يرجى تعبئة جميع الحقول.';
+    return;
+  }
+  // Subject is required if a teacher role is selected
+  const needsSubject = role !== 'معلم رياض أطفال';
+  if (needsSubject && !subject) {
+    err.textContent = 'يرجى اختيار مادة التقييم.';
     return;
   }
   // Email format check
@@ -794,6 +966,8 @@ async function beginInterview() {
   S.questions = await res.json();
   S.name = name; S.email = email; S.phone = phone;
   S.exp = expClean; S.role = role; S.location = location;
+  S.subject = subject || '';
+  S.assessmentQuestions = []; S.assessmentAnswers = []; S.assessmentIdx = 0;
   S.answers = Array(S.questions.length).fill('');
   S.expectedSalary = '';
   S.currentQ = 0;
@@ -806,7 +980,7 @@ async function beginInterview() {
 }
 
 function showScreen(id) {
-  ['setupScreen','roomScreen','thankScreen'].forEach(s =>
+  ['setupScreen','roomScreen','assessIntroScreen','assessScreen','thankScreen'].forEach(s =>
     document.getElementById(s).classList.toggle('hidden', s !== id));
 }
 
@@ -1316,7 +1490,21 @@ async function doOutro() {
   document.getElementById('btnNext').disabled = true;
   document.getElementById('btnSkip').disabled = true;
 
-  // Ask for expected salary FIRST (unless already answered or candidate ended early)
+  // ── NEW: Subject assessment for teacher roles ──
+  // If candidate selected a subject and the assessment hasn't run yet, do it now.
+  if (!S.ended && S.subject && S.assessmentAnswers.length === 0) {
+    // Announce the assessment via voice
+    const bridge = `شُكْراً لَكَ. الْآنَ نَنْتَقِلُ إِلَى مَرْحَلَةِ تَقْيِيمِ مَادَّةِ التَّخَصُّصِ.`;
+    setStatus('gold', 'الانتقال', bridge);
+    await speak(bridge);
+    if (S.ended) return;
+
+    // Show the intro then the wizard
+    await runSubjectAssessment();
+    if (S.ended) return;
+  }
+
+  // Ask for expected salary (unless already answered or candidate ended early)
   if (!S.ended && !S.expectedSalary) {
     await askExpectedSalary();
     if (S.ended) return; // user ended interview during salary step
@@ -1387,11 +1575,174 @@ function doEndInterview() {
   endEarly();
 }
 
+// ═══════════════════════════════════════════════
+//  SUBJECT ASSESSMENT WIZARD (25 MCQs, 30-min timer)
+// ═══════════════════════════════════════════════
+async function runSubjectAssessment() {
+  // Fetch the MCQs for the selected subject
+  let qs = [];
+  try {
+    const r = await fetch(`/api/assessment/${encodeURIComponent(S.subject)}`);
+    qs = await r.json();
+  } catch (e) {
+    console.error('Failed to load assessment:', e);
+  }
+  if (!Array.isArray(qs) || qs.length === 0) {
+    console.warn(`No assessment questions for subject ${S.subject} — skipping.`);
+    return;
+  }
+
+  S.assessmentQuestions = qs;
+  S.assessmentAnswers   = Array(qs.length).fill('');
+  S.assessmentIdx       = 0;
+  S.assessmentLeft      = ASSESS_SECONDS;
+
+  // Customize intro per subject
+  const subjectName = S.subject === 'English' ? 'اللغة الإنجليزية'
+                    : S.subject === 'عربي'   ? 'اللغة العربية'
+                    : S.subject;
+  document.getElementById('assessIntroTitle').textContent = `تقييم مادة ${subjectName}`;
+  showScreen('assessIntroScreen');
+
+  // Wait for candidate to click "ابدأ التقييم" → startAssessment() will run.
+  // We block here on a promise that resolves when the assessment is submitted.
+  return new Promise((resolve) => {
+    S.onAssessmentDone = resolve;
+  });
+}
+
+// Triggered by the "ابدأ التقييم" button on the intro screen
+function startAssessment() {
+  if (S.ended) return;
+  showScreen('assessScreen');
+  renderAssessmentQuestion();
+  startAssessmentTimer();
+}
+
+function startAssessmentTimer() {
+  if (S.assessmentTimer) clearInterval(S.assessmentTimer);
+  updateAssessmentTimerDisplay();
+  S.assessmentTimer = setInterval(() => {
+    S.assessmentLeft--;
+    updateAssessmentTimerDisplay();
+    if (S.assessmentLeft <= 0) {
+      clearInterval(S.assessmentTimer);
+      S.assessmentTimer = null;
+      // Auto-submit when time runs out
+      finalizeAssessment(true);
+    }
+  }, 1000);
+}
+
+function updateAssessmentTimerDisplay() {
+  const t = document.getElementById('assessTimer');
+  if (!t) return;
+  const m = Math.floor(S.assessmentLeft / 60);
+  const s = S.assessmentLeft % 60;
+  t.textContent = `${toAr(m)}:${toAr(s).padStart(2,'٠')}`;
+  t.classList.toggle('warn',   S.assessmentLeft <= 300 && S.assessmentLeft > 60);
+  t.classList.toggle('danger', S.assessmentLeft <= 60);
+}
+
+function renderAssessmentQuestion() {
+  const i  = S.assessmentIdx;
+  const q  = S.assessmentQuestions[i];
+  const N  = S.assessmentQuestions.length;
+  document.getElementById('assessCounter').textContent  = `السؤال ${toAr(i+1)} من ${toAr(N)}`;
+  document.getElementById('assessBarFill').style.width  = `${Math.round(((i+1)/N)*100)}%`;
+  document.getElementById('assessQText').textContent    = q.q;
+
+  // Render the 4 options
+  const opts = document.getElementById('assessOptions');
+  opts.innerHTML = '';
+  ['A','B','C','D'].forEach(letter => {
+    const text = q.options[letter];
+    const div  = document.createElement('div');
+    div.className = 'assess-option' + (S.assessmentAnswers[i] === letter ? ' selected' : '');
+    div.onclick = () => selectAssessmentAnswer(letter);
+    div.innerHTML = `
+      <span class="assess-option-letter">${letter}</span>
+      <span class="assess-option-text">${escapeHtml(text)}</span>
+    `;
+    opts.appendChild(div);
+  });
+
+  // Footer state
+  document.getElementById('assessPrev').disabled = (i === 0);
+  const isLast = (i === N - 1);
+  document.getElementById('assessNext').textContent = isLast ? 'إنهاء التقييم' : 'التالي';
+
+  // Summary "X of Y answered"
+  const answered = S.assessmentAnswers.filter(a => a).length;
+  document.getElementById('assessSummary').textContent =
+    `${toAr(answered)} من ${toAr(N)} تمت الإجابة`;
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function selectAssessmentAnswer(letter) {
+  S.assessmentAnswers[S.assessmentIdx] = letter;
+  // Re-render to show selection highlight + updated summary
+  renderAssessmentQuestion();
+}
+
+function assessPrev() {
+  if (S.assessmentIdx > 0) {
+    S.assessmentIdx--;
+    renderAssessmentQuestion();
+  }
+}
+
+function assessNext() {
+  const isLast = (S.assessmentIdx === S.assessmentQuestions.length - 1);
+  if (isLast) {
+    // Show submit-confirmation modal
+    const answered = S.assessmentAnswers.filter(a => a).length;
+    const N = S.assessmentQuestions.length;
+    const txt = answered === N
+      ? 'هل أنت متأكد من تسليم إجاباتك النهائية؟ لن تتمكن من العودة بعد التسليم.'
+      : `لم تُجِب على ${toAr(N - answered)} من الأسئلة. هل ترغب بالتسليم على أي حال؟`;
+    document.getElementById('assessSubmitText').textContent = txt;
+    document.getElementById('assessSubmitOverlay').style.display = 'flex';
+    return;
+  }
+  S.assessmentIdx++;
+  renderAssessmentQuestion();
+}
+
+function cancelAssessSubmit() {
+  document.getElementById('assessSubmitOverlay').style.display = 'none';
+}
+function confirmAssessSubmit() {
+  document.getElementById('assessSubmitOverlay').style.display = 'none';
+  finalizeAssessment(false);
+}
+
+// Called by the user clicking "submit" OR by timer expiry (autoSubmit=true)
+function finalizeAssessment(autoSubmit) {
+  if (S.assessmentTimer) { clearInterval(S.assessmentTimer); S.assessmentTimer = null; }
+  console.log(`Assessment submitted (autoSubmit=${autoSubmit}). Selections:`, S.assessmentAnswers);
+  const cb = S.onAssessmentDone;
+  S.onAssessmentDone = null;
+  if (cb) cb();
+}
+
+
 async function endEarly() {
   S.ended = true;
   stopReadCountdown();
   stopRecCountdown();
   stopVisualizer();
+  if (S.assessmentTimer) { clearInterval(S.assessmentTimer); S.assessmentTimer = null; }
+  if (S.onAssessmentDone) {
+    const cb = S.onAssessmentDone;
+    S.onAssessmentDone = null;
+    cb();
+  }
   if (S.currentAudio) { try { S.currentAudio.stop(); } catch{} S.currentAudio = null; }
   if (S.mediaRecorder && S.mediaRecorder.state !== 'inactive') {
     S.mediaRecorder.stream.getTracks().forEach(t => t.stop());
@@ -1439,6 +1790,8 @@ async function runEvaluation() {
         name: S.name, email: S.email, phone: S.phone,
         exp: S.exp, role: S.role,
         location: S.location, expectedSalary: S.expectedSalary,
+        subject: S.subject || null,
+        assessmentAnswers: S.assessmentAnswers || [],
         questions: S.questions, answers: S.answers
       }),
     });
@@ -1470,12 +1823,19 @@ async function runEvaluation() {
 // ═══════════════════════════════════════════════
 function newInterview() {
   S.name=''; S.email=''; S.phone=''; S.exp=''; S.role=''; S.location=''; S.expectedSalary=''; S.questions=[]; S.answers=[];
+  S.subject=''; S.assessmentQuestions=[]; S.assessmentAnswers=[]; S.assessmentIdx=0;
+  S.assessmentLeft=ASSESS_SECONDS;
+  if (S.assessmentTimer) { clearInterval(S.assessmentTimer); S.assessmentTimer=null; }
+  S.onAssessmentDone=null;
   S.currentQ=0; S.phase='idle'; S.ended=false;
   S.typingMode=false;
   if (S.typeTimer) { clearInterval(S.typeTimer); S.typeTimer=null; }
   document.getElementById('typePanel').style.display = 'none';
+  document.getElementById('assessSubmitOverlay').style.display = 'none';
   ['sName','sEmail','sPhone','sExp','sLocation'].forEach(id => document.getElementById(id).value='');
   document.getElementById('sRole').value='';
+  document.getElementById('sSubject').value='';
+  document.getElementById('subjectField').style.display='none';
   document.getElementById('btnBegin').disabled=false;
   document.getElementById('setupErr').textContent='';
   document.getElementById('thankNewBtn').style.display='none';
