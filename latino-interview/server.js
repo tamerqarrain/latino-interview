@@ -6,6 +6,7 @@ const Anthropic  = require('@anthropic-ai/sdk');
 const { DeepgramClient } = require('@deepgram/sdk');
 const multer     = require('multer');
 const path       = require('path');
+const fs         = require('fs');
 const { Resend } = require('resend');
 const { google } = require('googleapis');
 const QUESTIONS  = require('./questions');
@@ -94,27 +95,72 @@ initSheets();
 // ─────────────────────────────────────────────────────
 // Sends the full assessment + candidate selections to Claude for grading.
 // Returns: { score, total, percentage, perQuestion: [{ correct, selected, isCorrect, explanation }] }
+//
+// Supports two question shapes:
+//   - Text:  { q, options: {A,B,C,D} }
+//   - Image: { image: '/assets/.../qNN.png', imageOnly: true }
+// For image questions, the PNG file is loaded from disk and sent to Claude's vision API.
 async function gradeAssessment({ subject, candidateAnswers }) {
   const qs = ASSESSMENTS[subject];
   if (!qs || qs.length === 0) throw new Error(`No assessment questions found for subject: ${subject}`);
 
-  // If any question has an explicit `answer` key, use it; otherwise ask Claude.
-  // For now: send everything to Claude (it can handle pedagogy + science accurately).
-  const qBlock = qs.map((item, i) => {
-    const sel = candidateAnswers[i] || '(لم تتم الإجابة)';
-    return `س${i + 1}: ${item.q}\nA) ${item.options.A}\nB) ${item.options.B}\nC) ${item.options.C}\nD) ${item.options.D}\nاختيار المرشح: ${sel}`;
-  }).join('\n\n');
+  const subjectName = subject === 'English' ? 'اللغة الإنجليزية'
+                    : subject === 'عربي'   ? 'اللغة العربية'
+                    : subject;
 
-  const subjectName = subject === 'English' ? 'اللغة الإنجليزية' : subject;
-  const prompt = `أنت مُصحِّح خبير في مادة ${subjectName} ضمن مقابلة توظيف معلمين في الأردن. مهمتك تحديد الإجابة الصحيحة لكل سؤال متعدد الخيارات أدناه (A أو B أو C أو D)، ثم تصحيح إجابات المرشح.
+  // Build a multimodal content array. Each question may produce 1-2 blocks:
+  //   image questions  → image block + text block ("Q3 — candidate selected: B")
+  //   text questions   → text block with question, options, and selection
+  const contentBlocks = [];
+  contentBlocks.push({
+    type: 'text',
+    text: `أنت مُصحِّح خبير في مادة ${subjectName} ضمن مقابلة توظيف معلمين في الأردن. مهمتك تحديد الإجابة الصحيحة لكل سؤال متعدد الخيارات أدناه (A أو B أو C أو D)، ثم تصحيح إجابات المرشح.
 
 للأسئلة العلمية/الموضوعية: اعتمد المعرفة العلمية الصحيحة.
-للأسئلة التربوية/الموقفية: اعتمد أفضل الممارسات التربوية المعترف بها عالمياً (مثل إطار TIMSS وأدبيات إدارة الصف).
+للأسئلة التربوية/الموقفية: اعتمد أفضل الممارسات التربوية المعترف بها عالمياً.
+بعض الأسئلة قد تكون على شكل صور (تحتوي على رسوم بيانية أو معادلات رياضية) — اقرأ السؤال والخيارات من الصورة مباشرة.
 
-الأسئلة:
-${qBlock}
+سأرسل لك ${qs.length} سؤالاً. لكل سؤال، حدد الإجابة الصحيحة وقارنها باختيار المرشح.
 
-أعد JSON صحيحاً فقط — بدون markdown أو نصوص خارجية:
+`,
+  });
+
+  for (let i = 0; i < qs.length; i++) {
+    const item = qs[i];
+    const sel  = candidateAnswers[i] || '(لم تتم الإجابة)';
+
+    if (item.image) {
+      // Image-based question — load the PNG and include it
+      const imgPath = path.join(__dirname, 'public', item.image.replace(/^\//, ''));
+      try {
+        const buf = fs.readFileSync(imgPath);
+        const b64 = buf.toString('base64');
+        contentBlocks.push({
+          type: 'image',
+          source: { type: 'base64', media_type: 'image/png', data: b64 },
+        });
+        contentBlocks.push({
+          type: 'text',
+          text: `^ السؤال ${i + 1} — اختيار المرشح: ${sel}`,
+        });
+      } catch (e) {
+        console.error(`Failed to load image for Q${i + 1}:`, imgPath, e.message);
+        contentBlocks.push({
+          type: 'text',
+          text: `السؤال ${i + 1}: [تعذر تحميل صورة السؤال] — اختيار المرشح: ${sel}`,
+        });
+      }
+    } else {
+      contentBlocks.push({
+        type: 'text',
+        text: `السؤال ${i + 1}: ${item.q}\nA) ${item.options.A}\nB) ${item.options.B}\nC) ${item.options.C}\nD) ${item.options.D}\nاختيار المرشح: ${sel}`,
+      });
+    }
+  }
+
+  contentBlocks.push({
+    type: 'text',
+    text: `\nأعد JSON صحيحاً فقط — بدون markdown أو نصوص خارجية:
 {
   "perQuestion": [
     { "correct": "A|B|C|D", "isCorrect": true|false, "explanation": "<شرح موجز للإجابة الصحيحة بجملة واحدة>" }
@@ -124,12 +170,13 @@ ${qBlock}
   "percentage": <النسبة المئوية كعدد صحيح 0-100>
 }
 
-تأكد أن مصفوفة perQuestion تحتوي على ${qs.length} عناصر بالترتيب نفسه.`;
+تأكد أن مصفوفة perQuestion تحتوي على ${qs.length} عناصر بالترتيب نفسه.`,
+  });
 
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 6000,
-    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 8000,
+    messages: [{ role: 'user', content: contentBlocks }],
   });
 
   const raw   = message.content.map(b => b.text || '').join('');
@@ -269,9 +316,11 @@ app.get('/api/assessment/:subject', (req, res) => {
   const subject = decodeURIComponent(req.params.subject);
   const qs      = ASSESSMENTS[subject];
   if (!qs) return res.status(404).json({ error: 'Unknown subject' });
-  // Return questions WITHOUT answer keys (clients should never see correct answers).
-  // Strip any `answer` field if present.
-  const cleaned = qs.map(({ q, options }) => ({ q, options }));
+  // Return question shape. Strip any `answer` field if present (clients never see correct answers).
+  const cleaned = qs.map(({ q, options, image, imageOnly }) => {
+    if (image) return { image, imageOnly: !!imageOnly };
+    return { q, options };
+  });
   res.json(cleaned);
 });
 
@@ -541,12 +590,13 @@ function buildReportEmail({ name, email, phone, exp, role, location, expectedSal
       const mark    = ok ? '✓' : '✗';
       const markBg  = ok ? '#eafaf0' : '#fdeeec';
       const markFg  = ok ? '#27ae60' : '#e74c3c';
+      const qLabel  = item.q ? item.q : '(سؤال على شكل صورة)';
       return `<tr>
         <td style="padding:10px;border-bottom:1px solid #eee;vertical-align:top;">
           <div style="display:flex;align-items:flex-start;gap:8px;">
             <span style="background:${markBg};color:${markFg};border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;flex-shrink:0;">${mark}</span>
             <div style="flex:1;">
-              <div style="font-weight:bold;color:#1a2840;font-size:13px;margin-bottom:4px;">س${i+1}: ${item.q}</div>
+              <div style="font-weight:bold;color:#1a2840;font-size:13px;margin-bottom:4px;">س${i+1}: ${qLabel}</div>
               <div style="color:#666;font-size:12px;">
                 إجابة المرشح: <strong style="color:${markFg};">${sel}</strong>
                 ${ok ? '' : ` · الإجابة الصحيحة: <strong style="color:#27ae60;">${correct}</strong>`}
