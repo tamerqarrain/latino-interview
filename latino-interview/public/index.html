@@ -366,11 +366,49 @@
     margin: 18px auto 12px;
     padding: 0 16px;
   }
+  .type-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, rgba(201,168,76,0.12), rgba(201,168,76,0.04));
+    border: 1px solid rgba(201,168,76,0.35);
+    border-radius: 12px 12px 0 0;
+    border-bottom: none;
+  }
+  .type-timer-block {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 16px; font-weight: 700;
+  }
+  .type-timer-icon { font-size: 18px; }
+  .type-timer-label { color: var(--text-dim); font-size: 14px; font-weight: 500; }
+  #typeTimer {
+    font-family: 'Courier New', monospace;
+    color: var(--gold);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    min-width: 72px;
+    text-align: center;
+  }
+  #typeTimer.warning {
+    color: #ff9d40;
+  }
+  #typeTimer.danger {
+    color: #ff5050;
+    animation: pulse-danger 1s ease-in-out infinite;
+  }
+  .type-char-block {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
   .type-panel textarea {
     width: 100%;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-top: none;
+    border-radius: 0 0 12px 12px;
     padding: 16px 18px;
     color: var(--text);
     font-family: 'Tajawal', sans-serif;
@@ -380,23 +418,20 @@
     min-height: 140px;
     outline: none;
     transition: border-color .2s;
+    box-sizing: border-box;
   }
   .type-panel textarea:focus {
     border-color: var(--gold);
     box-shadow: 0 0 0 3px var(--gold-glow);
   }
-  .type-meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 8px;
-    padding: 0 4px;
-    font-size: 13px;
-    color: var(--text-dim);
-  }
-  #typeTimer { color: var(--gold); font-weight: 600; }
-  #typeTimer.warning { color: var(--red); }
   .ctrl:disabled { opacity: .3; cursor: default; }
+
+  @media (max-width: 600px) {
+    .type-header { padding: 10px 12px; }
+    .type-timer-block { font-size: 14px; }
+    #typeTimer { font-size: 18px; }
+    .type-panel textarea { font-size: 16px; min-height: 120px; }
+  }
 
   /* ══ THANK YOU ══ */
   .thank-card {
@@ -752,11 +787,17 @@
 
   <!-- Typing mode panel (hidden by default, shown when candidate clicks "اكتب") -->
   <div class="type-panel" id="typePanel" style="display:none;">
-    <textarea id="typeAnswer" placeholder="اكتب إجابتك هنا..." dir="rtl" rows="6"></textarea>
-    <div class="type-meta">
-      <span id="typeTimer">٣:٠٠</span>
-      <span id="typeCharCount">٠ حرف</span>
+    <div class="type-header">
+      <div class="type-timer-block">
+        <span class="type-timer-icon">⏱</span>
+        <span class="type-timer-label">الوقت المتبقي:</span>
+        <span id="typeTimer">٣:٠٠</span>
+      </div>
+      <div class="type-char-block">
+        <span id="typeCharCount">٠ حرف</span>
+      </div>
     </div>
+    <textarea id="typeAnswer" placeholder="اكتب إجابتك هنا..." dir="rtl" rows="6"></textarea>
   </div>
 
   <div class="room-bottom">
@@ -766,7 +807,7 @@
     <div class="main-slot">
       <button class="ctrl main answer-now" id="btnAnswerNow" onclick="answerNow()" style="display:none;">🎙 ابدأ الإجابة الآن</button>
       <button class="ctrl main secondary" id="btnTypeMode" onclick="switchToTyping()" style="display:none;">✍ اكتب الإجابة بدلاً من ذلك</button>
-      <button class="ctrl main primary" id="btnNext" onclick="doneAnswering()" disabled>✓ انتهيت من الإجابة</button>
+      <button class="ctrl main primary" id="btnNext" data-sfx="submit" onclick="doneAnswering()" disabled>✓ انتهيت من الإجابة</button>
     </div>
     <div class="skip-slot">
       <button class="ctrl" id="btnSkip" onclick="skipQuestion()" disabled>تخطي</button>
@@ -782,7 +823,7 @@
     <div class="modal-text">سيتم إنهاء المقابلة الآن ولن تتمكن من العودة. هل أنت متأكد من رغبتك في الإنهاء؟</div>
     <div class="modal-actions">
       <button class="modal-btn cancel" onclick="cancelEndInterview()">إلغاء — متابعة المقابلة</button>
-      <button class="modal-btn confirm" onclick="doEndInterview()">نعم، إنهاء</button>
+      <button class="modal-btn confirm" data-sfx="warn" onclick="doEndInterview()">نعم، إنهاء</button>
     </div>
   </div>
 </div>
@@ -799,7 +840,7 @@
       <br>
       يمكنك العودة إلى الأسئلة السابقة لتعديل إجاباتك قبل التسليم النهائي.
     </p>
-    <button class="rpt-btn primary" style="margin-top:24px;font-size:16px;padding:14px 32px;" onclick="startAssessment()">ابدأ التقييم</button>
+    <button class="rpt-btn primary" data-sfx="submit" style="margin-top:24px;font-size:16px;padding:14px 32px;" onclick="startAssessment()">ابدأ التقييم</button>
   </div>
 </div>
 
@@ -820,9 +861,9 @@
     </div>
 
     <div class="assess-footer">
-      <button class="ctrl" id="assessPrev" onclick="assessPrev()">السابق</button>
+      <button class="ctrl" id="assessPrev" data-sfx="navBack" onclick="assessPrev()">السابق</button>
       <div class="assess-summary" id="assessSummary">٠ من ٢٥ تمت الإجابة</div>
-      <button class="ctrl main primary" id="assessNext" onclick="assessNext()">التالي</button>
+      <button class="ctrl main primary" id="assessNext" data-sfx="navNext" onclick="assessNext()">التالي</button>
     </div>
   </div>
 </div>
@@ -835,7 +876,7 @@
     <div class="modal-text" id="assessSubmitText">هل أنت متأكد من تسليم إجاباتك النهائية؟ لن تتمكن من العودة بعد التسليم.</div>
     <div class="modal-actions">
       <button class="modal-btn cancel" onclick="cancelAssessSubmit()">إلغاء — متابعة المراجعة</button>
-      <button class="modal-btn confirm" style="background:#27ae60;" onclick="confirmAssessSubmit()">نعم، سلِّم الإجابات</button>
+      <button class="modal-btn confirm" data-sfx="submit" style="background:#27ae60;" onclick="confirmAssessSubmit()">نعم، سلِّم الإجابات</button>
     </div>
   </div>
 </div>
@@ -898,6 +939,63 @@ const S = {
 
 const AR = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
 const toAr = n => String(n).split('').map(d => AR[+d]||d).join('');
+
+// ═══════════════════════════════════════════════
+//  SOUND EFFECTS — short oscillator-based clicks
+//  Lazily creates an AudioContext on first use (browser autoplay rules
+//  require this happen after a user gesture, which all SFX triggers are).
+// ═══════════════════════════════════════════════
+const SFX = {
+  ctx: null,
+  enabled: true,
+  _getCtx() {
+    if (!this.ctx) {
+      try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e) { this.enabled = false; }
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(()=>{});
+    }
+    return this.ctx;
+  },
+  // Internal tone player. freqs can be a number or array (for sequences).
+  _tone(freq, duration, { type='sine', volume=0.06, attack=0.005, decay=null } = {}) {
+    if (!this.enabled) return;
+    const ctx = this._getCtx(); if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now);
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(volume, now + attack);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + (decay || duration));
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
+  },
+  click()    { this._tone(620, 0.06, { type:'triangle', volume:0.05 }); },
+  select()   { this._tone(800, 0.10, { type:'sine',     volume:0.06 }); },
+  navNext()  { this._tone(520, 0.07, { type:'sine',     volume:0.05 });
+               setTimeout(()=>this._tone(700, 0.07, { type:'sine', volume:0.05 }), 50); },
+  navBack()  { this._tone(700, 0.07, { type:'sine',     volume:0.05 });
+               setTimeout(()=>this._tone(520, 0.07, { type:'sine', volume:0.05 }), 50); },
+  submit()   { this._tone(660, 0.10, { type:'sine',     volume:0.07 });
+               setTimeout(()=>this._tone(880, 0.12, { type:'sine', volume:0.07 }), 80); },
+  warn()     { this._tone(380, 0.18, { type:'square',   volume:0.04 }); },
+};
+
+// Global click delegation: play a click sound when any button is clicked.
+// Buttons can opt out by adding data-no-sfx, or override with data-sfx="select|nav|submit|warn".
+document.addEventListener('click', (ev) => {
+  const btn = ev.target.closest('button, .assess-option, .modal-btn');
+  if (!btn) return;
+  if (btn.hasAttribute('data-no-sfx')) return;
+  if (btn.disabled) return;
+  const kind = btn.getAttribute('data-sfx') || 'click';
+  if (typeof SFX[kind] === 'function') SFX[kind]();
+}, true);
 
 // Converts role strings into clean spoken Arabic so ElevenLabs pronounces grades correctly.
 // e.g. "معلّم صف 1-3" → "مُعَلِّم صُفُوف مِنَ الْأَوَّلِ إِلَى الثَّالِثِ"
@@ -1041,7 +1139,8 @@ async function speak(text) {
 
       const src = ctx.createBufferSource();
       src.buffer = decoded;
-      src.playbackRate.value = 1.3; // 30% faster narration
+      // Natural pitch + natural pace. (Previously 1.3 — caused chipmunk pitch.)
+      src.playbackRate.value = 1.0;
       src.connect(ctx.destination);
       S.currentAudio = src;
       src.onended = () => { S.currentAudio = null; resolve(); };
@@ -1117,6 +1216,9 @@ function switchToTyping() {
   if (S.vizFrame) cancelAnimationFrame(S.vizFrame);
   S.mediaRecorder = null;
 
+  // Track typing mode FIRST so setPhase() below doesn't briefly flash the mic indicator
+  S.typingMode = true;
+
   // Hide voice controls, show typing controls
   setPhase('listening');
   setStatus('purple', 'وضع الكتابة', 'اكتب إجابتك في المربع أدناه، ثم اضغط "انتهيت".');
@@ -1130,11 +1232,28 @@ function switchToTyping() {
   const ta    = document.getElementById('typeAnswer');
   panel.style.display = '';
   ta.value = '';
+
+  // Salary mode: numbers only, with helpful placeholder/inputmode
+  const isSalary = !!S.onSalaryAnswered;
+  if (isSalary) {
+    ta.placeholder = 'أدخل المبلغ بالأرقام فقط (مثال: 800)';
+    ta.setAttribute('inputmode', 'numeric');
+    ta.setAttribute('dir', 'ltr');
+    ta.style.textAlign = 'left';
+  } else {
+    ta.placeholder = 'اكتب إجابتك هنا...';
+    ta.setAttribute('inputmode', 'text');
+    ta.setAttribute('dir', 'rtl');
+    ta.style.textAlign = 'right';
+  }
   ta.focus();
 
-  // Track typing mode + character count
-  S.typingMode = true;
   ta.oninput = () => {
+    if (S.onSalaryAnswered) {
+      // Strip any non-digit characters in salary mode
+      const cleaned = ta.value.replace(/[^0-9]/g, '');
+      if (ta.value !== cleaned) ta.value = cleaned;
+    }
     document.getElementById('typeCharCount').textContent = toAr(ta.value.length) + ' حرف';
   };
 
@@ -1143,11 +1262,12 @@ function switchToTyping() {
   const timerEl = document.getElementById('typeTimer');
   const fmtTime = (s) => `${toAr(Math.floor(s/60))}:${toAr(s%60).padStart(2,'٠')}`;
   timerEl.textContent = fmtTime(typeLeft);
-  timerEl.classList.remove('warning');
+  timerEl.classList.remove('warning', 'danger');
 
   S.typeTimer = setInterval(() => {
     typeLeft--;
-    if (typeLeft <= 30) timerEl.classList.add('warning');
+    timerEl.classList.toggle('warning', typeLeft <= 60 && typeLeft > 15);
+    timerEl.classList.toggle('danger',  typeLeft <= 15);
     timerEl.textContent = fmtTime(Math.max(0, typeLeft));
     if (typeLeft <= 0) {
       clearInterval(S.typeTimer);
@@ -1518,13 +1638,9 @@ async function doOutro() {
 
     await runSubjectAssessment();
     if (S.ended) return;
-  } else {
-    // No assessment (KG role) — close with the original spoken outro
-    refreshDots();
-    const outro = `شُكْراً جَزِيلاً، ${S.name}. هَذَا يَخْتَتِمُ مُقَابَلَتَنَا. لَقَدْ أَجَبْتَ عَلَى جَمِيعِ الْأَسْئِلَةِ. سَنُرَاجِعُ إِجَابَاتِكَ وَنَتَوَاصَلُ مَعَكَ فِي أَقْرَبِ وَقْتٍ. نَتَمَنَّى لَكَ يَوْماً مُوَفَّقاً.`;
-    setStatus('gold', 'الختام', outro);
-    await speak(outro);
   }
+  // (Thank-you speech now plays automatically on the thank-you screen via runEvaluation,
+  //  so there's no separate spoken outro here — keeps both paths consistent.)
 
   setStatus('blue', 'جارٍ التقييم', 'يحلّل لاتينو إجاباتك ويُعدّ التقرير…');
   setPhase('thinking');
@@ -1691,6 +1807,7 @@ function renderAssessmentQuestion() {
     ['A','B','C','D'].forEach(letter => {
       const btn = document.createElement('div');
       btn.className = 'assess-option' + (S.assessmentAnswers[i] === letter ? ' selected' : '');
+      btn.setAttribute('data-sfx', 'select');
       btn.style.flex = '0 0 auto';
       btn.style.minWidth = '90px';
       btn.style.justifyContent = 'center';
@@ -1711,6 +1828,7 @@ function renderAssessmentQuestion() {
       const text = q.options[letter];
       const div  = document.createElement('div');
       div.className = 'assess-option' + (S.assessmentAnswers[i] === letter ? ' selected' : '');
+      div.setAttribute('data-sfx', 'select');
       div.onclick = () => selectAssessmentAnswer(letter);
       div.innerHTML = `
         <span class="assess-option-letter">${letter}</span>
@@ -1834,6 +1952,14 @@ async function runEvaluation() {
   statusBox.classList.remove('done');
   statusText.textContent = 'جارٍ حفظ إجاباتك…';
 
+  // Speak the thank-you message (non-blocking — runs in parallel with the API call)
+  // Use a fresh speak() call without awaiting so the evaluation request doesn't wait.
+  (async () => {
+    if (S.ended) return;
+    const thankSpeech = `شُكْراً لَكَ. شُكْراً لِحُضُورِكَ الْمُقَابَلَةَ. لَقَدِ اسْتَلَمْنَا إِجَابَاتِكَ، وَسَيَقُومُ فَرِيقُنَا بِمُرَاجَعَتِهَا وَالتَّوَاصُلِ مَعَكَ فِي أَقْرَبِ وَقْتٍ.`;
+    try { await speak(thankSpeech); } catch {}
+  })();
+
   // In the background: generate the evaluation and email it to HR.
   try {
     const res = await fetch('/api/evaluate', {
@@ -1903,7 +2029,8 @@ function setPhase(phase) {
   const orb = document.getElementById('orbCore');
   orb.className = 'orb-core' + (phase !== 'idle' ? ' ' + phase : '');
   document.getElementById('soundwave').classList.toggle('on', phase === 'speaking');
-  document.getElementById('micIndicator').classList.toggle('on', phase === 'listening');
+  // Mic indicator only when LIVE recording (not when typing)
+  document.getElementById('micIndicator').classList.toggle('on', phase === 'listening' && !S.typingMode);
 }
 
 function setStatus(pip, tag, msg) {
@@ -1929,6 +2056,21 @@ function updateCounter() {
 function timeOfDay() {
   return new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير';
 }
+
+// ═══════════════════════════════════════════════
+//  PAGE INIT — input filters
+// ═══════════════════════════════════════════════
+// Phone: only digits and '+'
+document.getElementById('sPhone').addEventListener('input', (e) => {
+  const cleaned = e.target.value.replace(/[^0-9+]/g, '');
+  if (e.target.value !== cleaned) e.target.value = cleaned;
+});
+
+// Experience: only digits
+document.getElementById('sExp').addEventListener('input', (e) => {
+  const cleaned = e.target.value.replace(/[^0-9]/g, '');
+  if (e.target.value !== cleaned) e.target.value = cleaned;
+});
 </script>
 </body>
 </html>
