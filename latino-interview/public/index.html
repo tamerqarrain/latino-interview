@@ -1490,31 +1490,33 @@ async function doOutro() {
   document.getElementById('btnNext').disabled = true;
   document.getElementById('btnSkip').disabled = true;
 
-  // ── NEW: Subject assessment for teacher roles ──
-  // If candidate selected a subject and the assessment hasn't run yet, do it now.
-  if (!S.ended && S.subject && S.assessmentAnswers.length === 0) {
-    // Announce the assessment via voice
-    const bridge = `شُكْراً لَكَ. الْآنَ نَنْتَقِلُ إِلَى مَرْحَلَةِ تَقْيِيمِ مَادَّةِ التَّخَصُّصِ.`;
-    setStatus('gold', 'الانتقال', bridge);
-    await speak(bridge);
-    if (S.ended) return;
-
-    // Show the intro then the wizard
-    await runSubjectAssessment();
-    if (S.ended) return;
-  }
-
-  // Ask for expected salary (unless already answered or candidate ended early)
+  // ── Step 1: Salary — part of the spoken conversation, on roomScreen ──
   if (!S.ended && !S.expectedSalary) {
     await askExpectedSalary();
     if (S.ended) return; // user ended interview during salary step
   }
 
-  refreshDots();
+  // ── Step 2: Subject assessment (Teacher roles only) ──
+  // After assessment, go STRAIGHT to runEvaluation — no spoken outro, since
+  // the assessment is the candidate's final step and the thank-you screen
+  // takes over immediately.
+  const hasAssessment = !S.ended && S.subject && S.assessmentAnswers.length === 0;
+  if (hasAssessment) {
+    // Brief spoken bridge while still on roomScreen, then switch to assessment UI
+    const bridge = `شُكْراً ${S.name}. الْآنَ نَنْتَقِلُ إِلَى الْمَرْحَلَةِ الْأَخِيرَةِ: تَقْيِيمُ مَادَّةِ التَّخَصُّصِ.`;
+    setStatus('gold', 'الانتقال إلى التقييم', bridge);
+    await speak(bridge);
+    if (S.ended) return;
 
-  const outro = `شُكْراً جَزِيلاً، ${S.name}. هَذَا يَخْتَتِمُ مُقَابَلَتَنَا. لَقَدْ أَجَبْتَ عَلَى جَمِيعِ الْأَسْئِلَةِ. سَنُرَاجِعُ إِجَابَاتِكَ وَنَتَوَاصَلُ مَعَكَ فِي أَقْرَبِ وَقْتٍ. نَتَمَنَّى لَكَ يَوْماً مُوَفَّقاً.`;
-  setStatus('gold', 'الختام', outro);
-  await speak(outro);
+    await runSubjectAssessment();
+    if (S.ended) return;
+  } else {
+    // No assessment (KG role) — close with the original spoken outro
+    refreshDots();
+    const outro = `شُكْراً جَزِيلاً، ${S.name}. هَذَا يَخْتَتِمُ مُقَابَلَتَنَا. لَقَدْ أَجَبْتَ عَلَى جَمِيعِ الْأَسْئِلَةِ. سَنُرَاجِعُ إِجَابَاتِكَ وَنَتَوَاصَلُ مَعَكَ فِي أَقْرَبِ وَقْتٍ. نَتَمَنَّى لَكَ يَوْماً مُوَفَّقاً.`;
+    setStatus('gold', 'الختام', outro);
+    await speak(outro);
+  }
 
   setStatus('blue', 'جارٍ التقييم', 'يحلّل لاتينو إجاباتك ويُعدّ التقرير…');
   setPhase('thinking');
