@@ -364,7 +364,7 @@ app.get('/api/assessment/:subject', (req, res) => {
   if (!qs) return res.status(404).json({ error: 'Unknown subject' });
   // Return question shape. Strip rubric/answer fields (clients never see grading info).
   const cleaned = qs.map(({ q, options, image, imageOnly, type, passage, sectionStart, marks }) => {
-    if (image) return { image, imageOnly: !!imageOnly, type: 'mcq4' };
+    if (image) return { image, imageOnly: !!imageOnly, type: 'mcq4', options: options || null };
     return {
       q,
       options: options || null,

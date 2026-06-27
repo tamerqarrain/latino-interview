@@ -455,49 +455,88 @@ const ASSESSMENTS = {
   "عربي": [],
 
   "رياضيات": [
-    // Math questions are image-based (questions contain diagrams/formulas).
-    // Each entry has `image` referencing a cropped PNG of the original question.
-    // The frontend renders the image; the candidate selects A/B/C/D.
+    // Math questions: HYBRID format — image shows the diagram/question text,
+    // options rendered as CLEAN TEXT below the image (avoids source PDF defects:
+    // mangled superscripts, missing values, jumbled layouts).
     // Q1 — Definition of questionnaires
-    { image: "/assets/math/q01.png", imageOnly: true },
-    // Q2 — Classroom management (students not engaged in groups)
-    { image: "/assets/math/q02.png", imageOnly: true },
+    { image: "/assets/math/q01.png",
+      options: { A: "المقابلات", B: "الملاحظات", C: "الاختبارات", D: "الاستبانات" } },
+    // Q2 — Classroom management
+    { image: "/assets/math/q02.png",
+      options: {
+        A: "إعادة توزيع الطلبة غير المندمجين في المجموعات واستكمال المهمات مع زملائهم في المجموعات الجديدة.",
+        B: "التوجه نحو المجموعات التي تضم الطلبة غير المندمجين ومناقشتهم في المهمات المسندة لأعضاء الفريق.",
+        C: "الطلب من الطلبة الثلاثة غير المندمجين استكمال المهمة بشكل مستقل ومناقشتها مع المعلم بشكل فردي.",
+        D: "تجاهل الموضوع مؤقتاً لعدم إحراج الطلبة، ثم التحدث معهم على انفراد بعد انتهاء الحصة خارج الصف."
+      } },
     // Q3 — 10 + 6 ÷ 2 × 3
-    { image: "/assets/math/q03.png", imageOnly: true },
-    // Q4 — (2^10 × 5^15) / 10^10
-    { image: "/assets/math/q04.png", imageOnly: true },
+    { image: "/assets/math/q03.png",
+      options: { A: "19", B: "24", C: "-19", D: "11" } },
+    // Q4 — (2¹⁰ × 5¹⁵) / 10¹⁰  →  5⁵
+    { image: "/assets/math/q04.png",
+      options: { A: "5¹⁰", B: "2¹⁰", C: "5⁵", D: "2⁵" } },
     // Q5 — TIMSS best practice
-    { image: "/assets/math/q05.png", imageOnly: true },
+    { image: "/assets/math/q05.png",
+      options: {
+        A: "تدريب الطلبة على فنيّات الاختبارات الدوليّة من خلال الأنشطة داخل الصفّ",
+        B: "تدريب الطلبة على فنيّات الاختبارات الدوليّة من خلال الأنشطة خارج الصفّ",
+        C: "تدريب المعلّمين على البحث العلميّ",
+        D: "تدريب الطلبة على البحث العلميّ"
+      } },
     // Q6 — number line, smallest squared
-    { image: "/assets/math/q06.png", imageOnly: true },
-    // Q7 — Saleh bought 3 books (word problem, equation form)
-    { image: "/assets/math/q07.png", imageOnly: true },
-    // Q8 — f(x) = x^2+3x+k, find f(1)
-    { image: "/assets/math/q08.png", imageOnly: true },
+    { image: "/assets/math/q06.png",
+      options: { A: "B", B: "C", C: "D", D: "A" } },
+    // Q7 — Saleh's 3 books equation form
+    { image: "/assets/math/q07.png",
+      options: { A: "3x − 11 = 50", B: "3x + 11 = 50", C: "3(x + 11) = 50", D: "3(x − 11) = 50" } },
+    // Q8 — f(x) = x²+3x+k, find f(1)
+    // (Source PDF has corrupted C option; using best educated reconstruction.)
+    { image: "/assets/math/q08.png",
+      options: { A: "k − 4", B: "4", C: "−4", D: "0" } },
     // Q9 — Number of triangles in 6th pattern
-    { image: "/assets/math/q09.png", imageOnly: true },
-    // Q10 — a.b=105 integers, b-a min
-    { image: "/assets/math/q10.png", imageOnly: true },
+    { image: "/assets/math/q09.png",
+      options: { A: "7", B: "13", C: "10", D: "16" } },
+    // Q10 — a.b=105, integers, min of b−a
+    { image: "/assets/math/q10.png",
+      options: { A: "6", B: "8", C: "16", D: "21" } },
     // Q11 — Shadow/wall geometry
-    { image: "/assets/math/q11.png", imageOnly: true },
-    // Q12 — Three tangent circles triangle area
-    { image: "/assets/math/q12.png", imageOnly: true },
+    { image: "/assets/math/q11.png",
+      options: { A: "2", B: "4", C: "6", D: "8" } },
+    // Q12 — Three tangent circles, triangle area
+    { image: "/assets/math/q12.png",
+      options: { A: "10", B: "12", C: "16", D: "6" } },
     // Q13 — Square divided into 3 equal areas, length MC
-    { image: "/assets/math/q13.png", imageOnly: true },
+    { image: "/assets/math/q13.png",
+      options: { A: "3", B: "4", C: "√14", D: "√13" } },
     // Q14 — Parallelogram concept
-    { image: "/assets/math/q14.png", imageOnly: true },
-    // Q15 — Square abcd, length 28cm, area calc
-    { image: "/assets/math/q15.png", imageOnly: true },
-    // Q16 — Family of 7 at restaurant, meal pricing
-    { image: "/assets/math/q16.png", imageOnly: true },
+    { image: "/assets/math/q14.png",
+      options: {
+        A: "مساحة المستطيل",
+        B: "مساحة متوازي الأضلاع",
+        C: "مساحة المربّع",
+        D: "مساحة مثلّث قائم الزّاوية"
+      } },
+    // Q15 — Square abcd side 28cm, area
+    { image: "/assets/math/q15.png",
+      options: { A: "100", B: "121", C: "144", D: "400" } },
+    // Q16 — Family at restaurant
+    { image: "/assets/math/q16.png",
+      options: { A: "30", B: "45", C: "60", D: "90" } },
     // Q17 — Rectangle perimeter 48m → square area
-    { image: "/assets/math/q17.png", imageOnly: true },
-    // Q18 — Triangle two sides 6cm, 60° angle, third side
-    { image: "/assets/math/q18.png", imageOnly: true },
-    // Q19 — Double of 2^8
-    { image: "/assets/math/q19.png", imageOnly: true },
-    // Q20 — Circle inscribed in 900cm² square, distance A,B
-    { image: "/assets/math/q20.png", imageOnly: true },
+    { image: "/assets/math/q17.png",
+      options: { A: "121", B: "169", C: "144", D: "400" } },
+    // Q18 — Triangle two sides 6cm, 60° between, third side
+    // Source had "6 2" / "3 2" — restored as √2 forms.
+    { image: "/assets/math/q18.png",
+      options: { A: "6", B: "3", C: "6√2", D: "3√2" } },
+    // Q19 — Double of 2⁸ equals
+    // Source had digits with lost superscripts (216/210/29/212) — restored as powers of 2.
+    { image: "/assets/math/q19.png",
+      options: { A: "2¹⁶", B: "2¹⁰", C: "2⁹", D: "2¹²" } },
+    // Q20 — Circle inscribed in 900 cm² square, distance A,B
+    // Source had "152-15" / "302-30" — restored as 15√2−15 / 30√2−30.
+    { image: "/assets/math/q20.png",
+      options: { A: "90", B: "15", C: "15√2 − 15", D: "30√2 − 30" } },
   ],
 
   "English": [
