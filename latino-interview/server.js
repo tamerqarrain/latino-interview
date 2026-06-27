@@ -93,34 +93,51 @@ initSheets();
 // ─────────────────────────────────────────────────────
 //  ASSESSMENT GRADING (via Claude)
 // ─────────────────────────────────────────────────────
+// Escape HTML for safe inclusion in email templates
+function escapeHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // Sends the full assessment + candidate selections to Claude for grading.
 // Returns: { score, total, percentage, perQuestion: [{ correct, selected, isCorrect, explanation }] }
 //
-// Supports two question shapes:
-//   - Text:  { q, options: {A,B,C,D} }
-//   - Image: { image: '/assets/.../qNN.png', imageOnly: true }
-// For image questions, the PNG file is loaded from disk and sent to Claude's vision API.
+// Supports multiple question shapes:
+//   - Text MCQ:    { q, options: {A,B,C,D}, type: 'mcq4' }       (default)
+//   - 3-option MCQ:{ q, options: {A,B,C},   type: 'mcq3' }
+//   - True/False:  { q, type: 'truefalse' }                       (candidate selects 'T' or 'F')
+//   - Open-ended:  { q, type: 'openended', marks, rubric }        (candidate types free text)
+//   - Vowelization:{ q, type: 'vowelization', marks, rubric }     (candidate types diacritic-marked text)
+//   - Number→words:{ q, type: 'numbers_to_words', marks, rubric }
+//   - Image:       { image: '/assets/.../qNN.png', imageOnly: true }
+// Each question may have `marks` (default 1) and `passage` (long reading text).
+// For image questions, the PNG is loaded and sent to Claude's vision API.
+// Score is computed as sum of earned marks across all questions.
 async function gradeAssessment({ subject, candidateAnswers }) {
   const qs = ASSESSMENTS[subject];
   if (!qs || qs.length === 0) throw new Error(`No assessment questions found for subject: ${subject}`);
 
-  const subjectName = subject === 'English' ? 'اللغة الإنجليزية'
-                    : subject === 'عربي'   ? 'اللغة العربية'
+  const subjectName = subject.startsWith('English') ? 'اللغة الإنجليزية'
+                    : subject.startsWith('عربي')    ? 'اللغة العربية'
                     : subject;
 
-  // Build a multimodal content array. Each question may produce 1-2 blocks:
-  //   image questions  → image block + text block ("Q3 — candidate selected: B")
-  //   text questions   → text block with question, options, and selection
+  // Build a multimodal content array.
   const contentBlocks = [];
   contentBlocks.push({
     type: 'text',
-    text: `أنت مُصحِّح خبير في مادة ${subjectName} ضمن مقابلة توظيف معلمين في الأردن. مهمتك تحديد الإجابة الصحيحة لكل سؤال متعدد الخيارات أدناه (A أو B أو C أو D)، ثم تصحيح إجابات المرشح.
+    text: `أنت مُصحِّح خبير في مادة ${subjectName} ضمن مقابلة توظيف معلمين في الأردن. مهمتك تصحيح إجابات المرشح على كل سؤال أدناه وتقييمها وفق نوع السؤال.
 
-للأسئلة العلمية/الموضوعية: اعتمد المعرفة العلمية الصحيحة.
-للأسئلة التربوية/الموقفية: اعتمد أفضل الممارسات التربوية المعترف بها عالمياً.
-بعض الأسئلة قد تكون على شكل صور (تحتوي على رسوم بيانية أو معادلات رياضية) — اقرأ السؤال والخيارات من الصورة مباشرة.
+أنواع الأسئلة:
+- mcq4/mcq3: اختيار من متعدّد، حدد الحرف الصحيح (A/B/C/D أو A/B/C) وقارنه باختيار المرشح.
+- truefalse: صح أو خطأ، حدد الإجابة الصحيحة كـ T (صحيح) أو F (خطأ).
+- openended/vowelization/numbers_to_words: إجابة كتابيّة حرّة. قيّم إجابة المرشح وفق المعيار المرفق (rubric). امنح علامة جزئيّة 0 إلى marks حسب جودة الإجابة.
 
-سأرسل لك ${qs.length} سؤالاً. لكل سؤال، حدد الإجابة الصحيحة وقارنها باختيار المرشح.
+للأسئلة العلمية والنحوية: اعتمد المعرفة الأكاديمية الصحيحة.
+للأسئلة التربوية والموقفية: اعتمد أفضل الممارسات المعترف بها.
+بعض الأسئلة قد تكون صورًا — اقرأ السؤال والخيارات من الصورة.
+
+سأرسل ${qs.length} سؤالاً. لكل سؤال، قيّم إجابة المرشح وأعد النتيجة.
 
 `,
   });
@@ -128,9 +145,10 @@ async function gradeAssessment({ subject, candidateAnswers }) {
   for (let i = 0; i < qs.length; i++) {
     const item = qs[i];
     const sel  = candidateAnswers[i] || '(لم تتم الإجابة)';
+    const marks = item.marks || 1;
+    const type = item.type || (item.image ? 'mcq4' : 'mcq4');
 
     if (item.image) {
-      // Image-based question — load the PNG and include it
       const imgPath = path.join(__dirname, 'public', item.image.replace(/^\//, ''));
       try {
         const buf = fs.readFileSync(imgPath);
@@ -141,7 +159,7 @@ async function gradeAssessment({ subject, candidateAnswers }) {
         });
         contentBlocks.push({
           type: 'text',
-          text: `^ السؤال ${i + 1} — اختيار المرشح: ${sel}`,
+          text: `^ السؤال ${i + 1} (نوع: mcq4، علامات: ${marks}) — اختيار المرشح: ${sel}`,
         });
       } catch (e) {
         console.error(`Failed to load image for Q${i + 1}:`, imgPath, e.message);
@@ -150,12 +168,27 @@ async function gradeAssessment({ subject, candidateAnswers }) {
           text: `السؤال ${i + 1}: [تعذر تحميل صورة السؤال] — اختيار المرشح: ${sel}`,
         });
       }
-    } else {
-      contentBlocks.push({
-        type: 'text',
-        text: `السؤال ${i + 1}: ${item.q}\nA) ${item.options.A}\nB) ${item.options.B}\nC) ${item.options.C}\nD) ${item.options.D}\nاختيار المرشح: ${sel}`,
-      });
+      continue;
     }
+
+    // Text-based question — format depends on type
+    let qText = `السؤال ${i + 1} (نوع: ${type}، علامات: ${marks}):\n`;
+    if (item.passage) qText += `النصّ المرجعيّ:\n${item.passage}\n\n`;
+    qText += item.q + '\n';
+
+    if (type === 'mcq4') {
+      qText += `A) ${item.options.A}\nB) ${item.options.B}\nC) ${item.options.C}\nD) ${item.options.D}\n`;
+    } else if (type === 'mcq3') {
+      qText += `A) ${item.options.A}\nB) ${item.options.B}\nC) ${item.options.C}\n`;
+    } else if (type === 'truefalse') {
+      qText += `T) صحيح\nF) خطأ\n`;
+    } else {
+      // openended / vowelization / numbers_to_words
+      if (item.rubric) qText += `معيار التصحيح: ${item.rubric}\n`;
+    }
+
+    qText += `إجابة المرشح: ${sel}`;
+    contentBlocks.push({ type: 'text', text: qText });
   }
 
   contentBlocks.push({
@@ -163,19 +196,22 @@ async function gradeAssessment({ subject, candidateAnswers }) {
     text: `\nأعد JSON صحيحاً فقط — بدون markdown أو نصوص خارجية:
 {
   "perQuestion": [
-    { "correct": "A|B|C|D", "isCorrect": true|false, "explanation": "<شرح موجز للإجابة الصحيحة بجملة واحدة>" }
-  ],
-  "score": <عدد الإجابات الصحيحة>,
-  "total": ${qs.length},
-  "percentage": <النسبة المئوية كعدد صحيح 0-100>
+    {
+      "correct": "<الإجابة الصحيحة: حرف للMCQ، T أو F، أو نص نموذجي للأسئلة الكتابية>",
+      "earnedPoints": <رقم 0 إلى marks للسؤال>,
+      "maxPoints": <marks للسؤال>,
+      "isCorrect": <true إذا earnedPoints == maxPoints، false غير ذلك>,
+      "explanation": "<شرح موجز بجملة واحدة>"
+    }
+  ]
 }
 
-تأكد أن مصفوفة perQuestion تحتوي على ${qs.length} عناصر بالترتيب نفسه.`,
+تأكد أن مصفوفة perQuestion تحتوي على ${qs.length} عناصر بالترتيب نفسه. للأسئلة الكتابية امنح علامة جزئيّة بناءً على جودة الإجابة (مثلاً 1 من 4 إذا كانت ناقصة، 4 من 4 إذا كانت كاملة وصحيحة).`,
   });
 
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 8000,
+    max_tokens: 12000,
     messages: [{ role: 'user', content: contentBlocks }],
   });
 
@@ -190,17 +226,27 @@ async function gradeAssessment({ subject, candidateAnswers }) {
 
   const parsed = JSON.parse(jsonText);
 
-  // Fold the candidate's selection into each perQuestion entry
-  parsed.perQuestion = (parsed.perQuestion || []).map((pq, i) => ({
-    ...pq,
-    selected: candidateAnswers[i] || '',
-  }));
+  // Fold the candidate's selection into each perQuestion entry and clamp scores
+  parsed.perQuestion = (parsed.perQuestion || []).map((pq, i) => {
+    const q = qs[i] || {};
+    const maxPoints = q.marks || 1;
+    const earned = Math.max(0, Math.min(maxPoints, Number(pq.earnedPoints) || 0));
+    return {
+      correct: pq.correct || '?',
+      earnedPoints: earned,
+      maxPoints,
+      isCorrect: earned >= maxPoints,
+      explanation: pq.explanation || '',
+      selected: candidateAnswers[i] || '',
+    };
+  });
 
-  // Recompute score defensively in case Claude miscounted
-  const computedScore = parsed.perQuestion.filter(pq => pq.isCorrect).length;
-  parsed.score      = computedScore;
-  parsed.total      = qs.length;
-  parsed.percentage = qs.length > 0 ? Math.round((computedScore / qs.length) * 100) : 0;
+  // Compute totals from per-question marks
+  const totalEarned   = parsed.perQuestion.reduce((s, pq) => s + (pq.earnedPoints || 0), 0);
+  const totalPossible = parsed.perQuestion.reduce((s, pq) => s + (pq.maxPoints   || 0), 0);
+  parsed.score      = totalEarned;
+  parsed.total      = totalPossible;
+  parsed.percentage = totalPossible > 0 ? Math.round((totalEarned / totalPossible) * 100) : 0;
 
   return parsed;
 }
@@ -316,10 +362,17 @@ app.get('/api/assessment/:subject', (req, res) => {
   const subject = decodeURIComponent(req.params.subject);
   const qs      = ASSESSMENTS[subject];
   if (!qs) return res.status(404).json({ error: 'Unknown subject' });
-  // Return question shape. Strip any `answer` field if present (clients never see correct answers).
-  const cleaned = qs.map(({ q, options, image, imageOnly }) => {
-    if (image) return { image, imageOnly: !!imageOnly };
-    return { q, options };
+  // Return question shape. Strip rubric/answer fields (clients never see grading info).
+  const cleaned = qs.map(({ q, options, image, imageOnly, type, passage, sectionStart, marks }) => {
+    if (image) return { image, imageOnly: !!imageOnly, type: 'mcq4' };
+    return {
+      q,
+      options: options || null,
+      type: type || 'mcq4',
+      passage: passage || null,
+      sectionStart: sectionStart || null,
+      marks: marks || 1,
+    };
   });
   res.json(cleaned);
 });
@@ -574,7 +627,9 @@ function buildReportEmail({ name, email, phone, exp, role, location, expectedSal
   const growList = (areasForGrowth||[]).map(g => `<li>${g}</li>`).join('');
 
   // ── Subject assessment block (only present for teacher roles with a subject) ──
-  const subjectName = subject === 'English' ? 'اللغة الإنجليزية' : subject;
+  const subjectName = subject && subject.startsWith('English') ? 'اللغة الإنجليزية'
+                    : subject && subject.startsWith('عربي')    ? `اللغة العربية${subject.includes('الدنيا') ? ' — المرحلة الدنيا' : subject.includes('العليا') ? ' — المرحلة العليا' : ''}`
+                    : subject;
   let assessmentBlock = '';
   if (subject && assessmentResult && assessmentResult.total > 0) {
     const pct      = assessmentResult.percentage;
@@ -582,26 +637,62 @@ function buildReportEmail({ name, email, phone, exp, role, location, expectedSal
     const perQ     = (assessmentResult.perQuestion || []);
     const allAssessmentQs = ASSESSMENTS[subject] || [];
 
+    // Helper: format the candidate's answer for display
+    const fmtSelected = (sel, type) => {
+      if (!sel) return '—';
+      if (type === 'truefalse') return sel === 'T' ? 'صحيح' : sel === 'F' ? 'خطأ' : sel;
+      return sel;
+    };
+    const fmtCorrect = (correct, type) => {
+      if (!correct || correct === '?') return correct || '?';
+      if (type === 'truefalse') return correct === 'T' ? 'صحيح' : correct === 'F' ? 'خطأ' : correct;
+      return correct;
+    };
+
     const qRows = allAssessmentQs.map((item, i) => {
       const pq      = perQ[i] || {};
-      const correct = pq.correct || '?';
-      const sel     = pq.selected || '—';
-      const ok      = pq.isCorrect;
-      const mark    = ok ? '✓' : '✗';
-      const markBg  = ok ? '#eafaf0' : '#fdeeec';
-      const markFg  = ok ? '#27ae60' : '#e74c3c';
+      const type    = item.type || 'mcq4';
+      const earned  = (pq.earnedPoints !== undefined) ? pq.earnedPoints : (pq.isCorrect ? (item.marks || 1) : 0);
+      const max     = pq.maxPoints || item.marks || 1;
+      const ok      = earned >= max;
+      const partial = !ok && earned > 0;
+      const mark    = ok ? '✓' : (partial ? '◐' : '✗');
+      const markBg  = ok ? '#eafaf0' : (partial ? '#fff8e8' : '#fdeeec');
+      const markFg  = ok ? '#27ae60' : (partial ? '#e8a020' : '#e74c3c');
       const qLabel  = item.q ? item.q : '(سؤال على شكل صورة)';
-      return `<tr>
+      const isText  = type === 'openended' || type === 'vowelization' || type === 'numbers_to_words';
+      const sel     = fmtSelected(pq.selected, type);
+      const correct = fmtCorrect(pq.correct, type);
+
+      // Section header row (rendered above question if sectionStart present)
+      let sectionRow = '';
+      if (item.sectionStart) {
+        sectionRow = `<tr><td style="padding:14px 10px 8px;border-bottom:1px solid #eee;">
+          <div style="font-weight:bold;color:#c9a84c;font-size:13px;border-bottom:1px solid #f0e6c8;padding-bottom:4px;">${item.sectionStart}</div>
+        </td></tr>`;
+      }
+
+      // Long-text answers shown in a quoted block; short answers inline
+      const selBlock = isText
+        ? `<div style="background:#f7f7f7;border-right:3px solid ${markFg};padding:8px 10px;margin-top:6px;font-size:12px;color:#444;white-space:pre-wrap;">${escapeHtml(sel)}</div>`
+        : ` <strong style="color:${markFg};">${sel}</strong>`;
+
+      return sectionRow + `<tr>
         <td style="padding:10px;border-bottom:1px solid #eee;vertical-align:top;">
           <div style="display:flex;align-items:flex-start;gap:8px;">
             <span style="background:${markBg};color:${markFg};border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;flex-shrink:0;">${mark}</span>
             <div style="flex:1;">
-              <div style="font-weight:bold;color:#1a2840;font-size:13px;margin-bottom:4px;">س${i+1}: ${qLabel}</div>
-              <div style="color:#666;font-size:12px;">
-                إجابة المرشح: <strong style="color:${markFg};">${sel}</strong>
-                ${ok ? '' : ` · الإجابة الصحيحة: <strong style="color:#27ae60;">${correct}</strong>`}
+              <div style="font-weight:bold;color:#1a2840;font-size:13px;margin-bottom:4px;">
+                س${i+1}: ${escapeHtml(qLabel)}
+                <span style="color:#999;font-weight:normal;font-size:11px;">(${earned}/${max} علامة)</span>
               </div>
-              ${pq.explanation ? `<div style="color:#888;font-size:12px;margin-top:4px;font-style:italic;">${pq.explanation}</div>` : ''}
+              <div style="color:#666;font-size:12px;">
+                إجابة المرشح:${isText ? '' : selBlock}
+                ${ok || isText ? '' : ` · الإجابة الصحيحة: <strong style="color:#27ae60;">${escapeHtml(correct)}</strong>`}
+              </div>
+              ${isText ? selBlock : ''}
+              ${isText && !ok ? `<div style="color:#666;font-size:12px;margin-top:6px;">الإجابة المرجعيّة: <span style="color:#27ae60;">${escapeHtml(correct)}</span></div>` : ''}
+              ${pq.explanation ? `<div style="color:#888;font-size:12px;margin-top:4px;font-style:italic;">${escapeHtml(pq.explanation)}</div>` : ''}
             </div>
           </div>
         </td>

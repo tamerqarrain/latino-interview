@@ -906,10 +906,21 @@ const ASSESS_DURATIONS = {
   'علوم':    30 * 60,   // 25 questions
   'رياضيات': 40 * 60,   // 20 image-based questions (longer to read)
   'English': 40 * 60,   // 42 questions
-  'عربي':    30 * 60,
+  'عربي - المرحلة الدنيا': 60 * 60,   // 25 mixed-type Arabic items
+  'عربي - المرحلة العليا': 60 * 60,   // 41 mixed-type Arabic items
+  'عربي': 60 * 60,                    // legacy alias
 };
 function getAssessDuration(subject) {
   return ASSESS_DURATIONS[subject] || (30 * 60);
+}
+
+// Arabic has two variants picked by the candidate's role.
+// "معلّم صف 1-3" → elementary; everyone else → upper grades.
+function effectiveAssessmentKey(subject, role) {
+  if (subject === 'عربي') {
+    return role === 'معلّم صف 1-3' ? 'عربي - المرحلة الدنيا' : 'عربي - المرحلة العليا';
+  }
+  return subject;
 }
 const CIRC = 2 * Math.PI * 26; // 163.4 — SVG circle circumference
 
@@ -924,7 +935,7 @@ const USE_VOICE_INPUT = false;
 // ═══════════════════════════════════════════════
 const S = {
   name: '', email: '', phone: '', exp: '', role: '', location: '', expectedSalary: '',
-  subject: '',                                                   // selected subject (Teachers only)
+  subject: '', effectiveSubject: '',                              // selected subject (Teachers only); effectiveSubject is the resolved variant for Arabic
   assessmentQuestions: [], assessmentAnswers: [], assessmentIdx: 0,
   assessmentTimer: null, assessmentLeft: getAssessDuration(''),
   questions: [], answers: [],
@@ -1705,42 +1716,58 @@ function doEndInterview() {
 //  SUBJECT ASSESSMENT WIZARD (25 MCQs, 30-min timer)
 // ═══════════════════════════════════════════════
 async function runSubjectAssessment() {
-  // Fetch the MCQs for the selected subject
+  // Resolve subject to the right variant (Arabic has elementary/upper variants by role)
+  const effectiveSubject = effectiveAssessmentKey(S.subject, S.role);
+
+  // Fetch the questions for the resolved subject
   let qs = [];
   try {
-    const r = await fetch(`/api/assessment/${encodeURIComponent(S.subject)}`);
+    const r = await fetch(`/api/assessment/${encodeURIComponent(effectiveSubject)}`);
     qs = await r.json();
   } catch (e) {
     console.error('Failed to load assessment:', e);
   }
   if (!Array.isArray(qs) || qs.length === 0) {
-    console.warn(`No assessment questions for subject ${S.subject} — skipping.`);
+    console.warn(`No assessment questions for subject ${effectiveSubject} — skipping.`);
     return;
   }
 
   S.assessmentQuestions = qs;
   S.assessmentAnswers   = Array(qs.length).fill('');
   S.assessmentIdx       = 0;
-  S.assessmentLeft      = getAssessDuration(S.subject);
+  S.assessmentLeft      = getAssessDuration(effectiveSubject);
+  S.effectiveSubject    = effectiveSubject; // remember which variant for grading submission
 
   // Customize intro per subject
-  const subjectName = S.subject === 'English' ? 'اللغة الإنجليزية'
-                    : S.subject === 'عربي'   ? 'اللغة العربية'
-                    : S.subject;
+  const subjectName = effectiveSubject === 'English' ? 'اللغة الإنجليزية'
+                    : effectiveSubject === 'عربي - المرحلة الدنيا' ? 'اللغة العربية — المرحلة الدنيا'
+                    : effectiveSubject === 'عربي - المرحلة العليا' ? 'اللغة العربية — المرحلة العليا'
+                    : effectiveSubject === 'عربي' ? 'اللغة العربية'
+                    : effectiveSubject;
   document.getElementById('assessIntroTitle').textContent = `تقييم مادة ${subjectName}`;
 
-  // Dynamic intro body — adapts to question count and timer
-  const N        = qs.length;
-  const mins     = Math.round(getAssessDuration(S.subject) / 60);
-  const hasImage = qs.some(q => q.image);
-  const bodyHTML = `ستبدأ الآن مرحلة تقييم مادة <strong>${subjectName}</strong>. ستظهر لك <strong>${toAr(N)}</strong> سؤالاً متعدد الخيارات${hasImage ? ' (بعض الأسئلة على شكل صور)' : ''}، سؤال واحد في كل شاشة، واختر الإجابة الأنسب من بين الخيارات الأربعة.`;
+  // Dynamic intro body — adapts to question count, timer, and question types
+  const N         = qs.length;
+  const mins      = Math.round(getAssessDuration(effectiveSubject) / 60);
+  const hasImage  = qs.some(q => q.image);
+  const hasTypes  = new Set(qs.map(q => q.type || 'mcq4'));
+  const typesList = [];
+  if (hasTypes.has('mcq4') || hasTypes.has('mcq3')) typesList.push('اختيار من متعدّد');
+  if (hasTypes.has('truefalse')) typesList.push('صح أو خطأ');
+  if (hasTypes.has('openended')) typesList.push('إجابات كتابيّة');
+  if (hasTypes.has('vowelization')) typesList.push('تشكيل');
+  if (hasTypes.has('numbers_to_words')) typesList.push('تحويل الأرقام إلى كلمات');
+  const typesDesc = typesList.length > 1
+    ? ` (يتضمّن: ${typesList.join('، ')})`
+    : (hasImage ? ' (بعض الأسئلة على شكل صور)' : '');
+
+  const bodyHTML = `ستبدأ الآن مرحلة تقييم مادة <strong>${subjectName}</strong>. ستظهر لك <strong>${toAr(N)}</strong> سؤالاً${typesDesc}، سؤال واحد في كل شاشة. اقرأ بعناية وأجب عن كل سؤال.`;
   document.getElementById('assessIntroBody').innerHTML = bodyHTML;
   document.getElementById('assessIntroDuration').textContent = `⏱ المدة المسموحة: ${toAr(mins)} دقيقة`;
 
   showScreen('assessIntroScreen');
 
   // Wait for candidate to click "ابدأ التقييم" → startAssessment() will run.
-  // We block here on a promise that resolves when the assessment is submitted.
   return new Promise((resolve) => {
     S.onAssessmentDone = resolve;
   });
@@ -1789,53 +1816,56 @@ function renderAssessmentQuestion() {
   const qTextEl = document.getElementById('assessQText');
   const optsEl  = document.getElementById('assessOptions');
   optsEl.innerHTML = '';
+  const type = q.type || 'mcq4';
+  const currentAnswer = S.assessmentAnswers[i] || '';
 
+  // Build the question body — sectionStart header + passage + question text
+  let bodyHTML = '';
+  if (q.sectionStart) {
+    bodyHTML += `<div style="background:linear-gradient(135deg,rgba(201,168,76,0.12),rgba(201,168,76,0.03));border:1px solid rgba(201,168,76,0.35);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-weight:bold;color:#c9a84c;font-size:14px;">${escapeHtml(q.sectionStart)}</div>`;
+  }
+  if (q.passage) {
+    bodyHTML += `<details style="margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;" open><summary style="cursor:pointer;font-weight:600;color:#c9a84c;font-size:13px;margin-bottom:6px;">📖 النصّ المرجعيّ — اضغط للإخفاء/الإظهار</summary><div style="margin-top:10px;line-height:1.9;color:var(--text);font-size:14px;white-space:pre-wrap;">${escapeHtml(q.passage)}</div></details>`;
+  }
+
+  // Render based on question type
   if (q.image) {
-    // Image-based question — show the source image (question + diagram + options labeled A/B/C/D)
-    // and render four letter buttons for selection
-    qTextEl.innerHTML = `
+    // Image MCQ: show source image, then A/B/C/D buttons
+    qTextEl.innerHTML = bodyHTML + `
       <div style="text-align:center;margin-bottom:18px;">
         <img src="${q.image}" alt="السؤال ${i+1}" style="max-width:100%;height:auto;border-radius:8px;border:1px solid var(--border);background:#fff;" />
       </div>
       <div style="font-size:14px;color:var(--text-dim);margin-bottom:8px;">اختر الإجابة الصحيحة:</div>
     `;
-    // Letter-only buttons in a row
-    optsEl.style.flexDirection = 'row';
-    optsEl.style.flexWrap = 'wrap';
-    optsEl.style.justifyContent = 'center';
-    optsEl.style.gap = '10px';
-    ['A','B','C','D'].forEach(letter => {
-      const btn = document.createElement('div');
-      btn.className = 'assess-option' + (S.assessmentAnswers[i] === letter ? ' selected' : '');
-      btn.setAttribute('data-sfx', 'select');
-      btn.style.flex = '0 0 auto';
-      btn.style.minWidth = '90px';
-      btn.style.justifyContent = 'center';
-      btn.onclick = () => selectAssessmentAnswer(letter);
-      btn.innerHTML = `
-        <span class="assess-option-letter">${letter}</span>
-      `;
-      optsEl.appendChild(btn);
-    });
-  } else {
-    // Text-based question
-    qTextEl.textContent = q.q;
-    optsEl.style.flexDirection = 'column';
-    optsEl.style.flexWrap = 'nowrap';
-    optsEl.style.justifyContent = 'flex-start';
-    optsEl.style.gap = '10px';
-    ['A','B','C','D'].forEach(letter => {
-      const text = q.options[letter];
-      const div  = document.createElement('div');
-      div.className = 'assess-option' + (S.assessmentAnswers[i] === letter ? ' selected' : '');
-      div.setAttribute('data-sfx', 'select');
-      div.onclick = () => selectAssessmentAnswer(letter);
-      div.innerHTML = `
-        <span class="assess-option-letter">${letter}</span>
-        <span class="assess-option-text">${escapeHtml(text)}</span>
-      `;
-      optsEl.appendChild(div);
-    });
+    renderLetterOptions(optsEl, ['A','B','C','D'], currentAnswer);
+  }
+  else if (type === 'mcq4') {
+    qTextEl.innerHTML = bodyHTML + `<div style="font-size:17px;line-height:1.9;color:var(--text);">${escapeHtml(q.q)}</div>`;
+    renderTextOptions(optsEl, ['A','B','C','D'], q.options, currentAnswer);
+  }
+  else if (type === 'mcq3') {
+    qTextEl.innerHTML = bodyHTML + `<div style="font-size:17px;line-height:1.9;color:var(--text);">${escapeHtml(q.q)}</div>`;
+    renderTextOptions(optsEl, ['A','B','C'], q.options, currentAnswer);
+  }
+  else if (type === 'truefalse') {
+    qTextEl.innerHTML = bodyHTML + `<div style="font-size:17px;line-height:1.9;color:var(--text);">${escapeHtml(q.q)}</div>
+      <div style="font-size:13px;color:var(--text-dim);margin-top:8px;">حدّد ما إذا كانت العبارة صحيحة أو خاطئة:</div>`;
+    renderTrueFalseOptions(optsEl, currentAnswer);
+  }
+  else if (type === 'openended' || type === 'vowelization' || type === 'numbers_to_words') {
+    // Convert <u>...</u> tags to underlined spans for vowelization hints
+    const qHtml = escapeHtml(q.q).replace(/&lt;u&gt;/g, '<u style="text-decoration:underline;color:#c9a84c;">').replace(/&lt;\/u&gt;/g, '</u>');
+    const hint = type === 'vowelization' ? 'اكتب الكلمات مع التشكيل (الحركات) الصحيح.'
+              : type === 'numbers_to_words' ? 'اكتب الرقم كاملاً بالكلمات العربية.'
+              : 'اكتب إجابتك في المربّع أدناه.';
+    qTextEl.innerHTML = bodyHTML + `<div style="font-size:17px;line-height:1.9;color:var(--text);white-space:pre-wrap;">${qHtml}</div>
+      <div style="font-size:13px;color:var(--text-dim);margin-top:8px;">${hint}</div>`;
+    renderTextareaAnswer(optsEl, currentAnswer, type);
+  }
+  else {
+    // Fallback to mcq4
+    qTextEl.innerHTML = bodyHTML + `<div style="font-size:17px;line-height:1.9;color:var(--text);">${escapeHtml(q.q)}</div>`;
+    renderTextOptions(optsEl, ['A','B','C','D'], q.options || {}, currentAnswer);
   }
 
   // Footer state
@@ -1843,10 +1873,123 @@ function renderAssessmentQuestion() {
   const isLast = (i === N - 1);
   document.getElementById('assessNext').textContent = isLast ? 'إنهاء التقييم' : 'التالي';
 
-  // Summary "X of Y answered"
-  const answered = S.assessmentAnswers.filter(a => a).length;
+  // Summary "X of Y answered" — non-empty strings count for text answers
+  const answered = S.assessmentAnswers.filter(a => a && String(a).trim()).length;
   document.getElementById('assessSummary').textContent =
     `${toAr(answered)} من ${toAr(N)} تمت الإجابة`;
+}
+
+// Render letter-only buttons (A/B/C/D row) — used for image MCQs
+function renderLetterOptions(optsEl, letters, currentAnswer) {
+  optsEl.style.flexDirection = 'row';
+  optsEl.style.flexWrap = 'wrap';
+  optsEl.style.justifyContent = 'center';
+  optsEl.style.gap = '10px';
+  letters.forEach(letter => {
+    const btn = document.createElement('div');
+    btn.className = 'assess-option' + (currentAnswer === letter ? ' selected' : '');
+    btn.setAttribute('data-sfx', 'select');
+    btn.style.flex = '0 0 auto';
+    btn.style.minWidth = '90px';
+    btn.style.justifyContent = 'center';
+    btn.onclick = () => selectAssessmentAnswer(letter);
+    btn.innerHTML = `<span class="assess-option-letter">${letter}</span>`;
+    optsEl.appendChild(btn);
+  });
+}
+
+// Render text MCQ options stacked vertically (A/B/C[/D])
+function renderTextOptions(optsEl, letters, options, currentAnswer) {
+  optsEl.style.flexDirection = 'column';
+  optsEl.style.flexWrap = 'nowrap';
+  optsEl.style.justifyContent = 'flex-start';
+  optsEl.style.gap = '10px';
+  letters.forEach(letter => {
+    const text = (options && options[letter]) || '';
+    const div  = document.createElement('div');
+    div.className = 'assess-option' + (currentAnswer === letter ? ' selected' : '');
+    div.setAttribute('data-sfx', 'select');
+    div.onclick = () => selectAssessmentAnswer(letter);
+    div.innerHTML = `
+      <span class="assess-option-letter">${letter}</span>
+      <span class="assess-option-text">${escapeHtml(text)}</span>
+    `;
+    optsEl.appendChild(div);
+  });
+}
+
+// Render two large buttons for True/False questions
+function renderTrueFalseOptions(optsEl, currentAnswer) {
+  optsEl.style.flexDirection = 'row';
+  optsEl.style.flexWrap = 'wrap';
+  optsEl.style.justifyContent = 'center';
+  optsEl.style.gap = '14px';
+  const opts = [
+    { val: 'T', label: 'صحيح ✓', color: '#27ae60' },
+    { val: 'F', label: 'خطأ ✗',  color: '#e74c3c' },
+  ];
+  opts.forEach(({val, label, color}) => {
+    const btn = document.createElement('div');
+    btn.className = 'assess-option' + (currentAnswer === val ? ' selected' : '');
+    btn.setAttribute('data-sfx', 'select');
+    btn.style.flex = '1 1 200px';
+    btn.style.maxWidth = '260px';
+    btn.style.justifyContent = 'center';
+    btn.style.fontSize = '17px';
+    btn.style.fontWeight = '700';
+    btn.style.padding = '20px';
+    if (currentAnswer === val) btn.style.borderColor = color;
+    btn.onclick = () => selectAssessmentAnswer(val);
+    btn.innerHTML = `<span style="color:${currentAnswer === val ? color : 'inherit'};">${label}</span>`;
+    optsEl.appendChild(btn);
+  });
+}
+
+// Render a textarea for open-ended / vowelization / numbers-to-words answers
+function renderTextareaAnswer(optsEl, currentAnswer, type) {
+  optsEl.style.flexDirection = 'column';
+  optsEl.style.gap = '8px';
+  const ta = document.createElement('textarea');
+  ta.className = 'assess-textarea';
+  ta.value = currentAnswer || '';
+  ta.dir = 'rtl';
+  ta.rows = type === 'openended' ? 5 : 2;
+  ta.placeholder = type === 'vowelization' ? 'مثال: مفاوضاتٍ مكثّفةً'
+                : type === 'numbers_to_words' ? 'مثال: خمسة عشر كتابًا'
+                : 'اكتب إجابتك هنا...';
+  ta.style.cssText = `
+    width: 100%; box-sizing: border-box;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    color: var(--text);
+    font-family: 'Tajawal', sans-serif;
+    font-size: 16px;
+    line-height: 1.8;
+    resize: vertical;
+    outline: none;
+    transition: border-color .2s;
+  `;
+  ta.oninput = () => {
+    S.assessmentAnswers[S.assessmentIdx] = ta.value;
+    // Update summary without re-rendering (to preserve focus + caret)
+    const N = S.assessmentQuestions.length;
+    const answered = S.assessmentAnswers.filter(a => a && String(a).trim()).length;
+    document.getElementById('assessSummary').textContent =
+      `${toAr(answered)} من ${toAr(N)} تمت الإجابة`;
+  };
+  ta.onfocus = () => { ta.style.borderColor = 'var(--gold)'; ta.style.boxShadow = '0 0 0 3px var(--gold-glow)'; };
+  ta.onblur  = () => { ta.style.borderColor = 'var(--border)'; ta.style.boxShadow = 'none'; };
+  optsEl.appendChild(ta);
+
+  // Char counter
+  const counter = document.createElement('div');
+  counter.style.cssText = 'font-size:12px;color:var(--text-dim);text-align:left;direction:ltr;';
+  const updateCount = () => { counter.textContent = `${toAr(ta.value.length)} حرف`; };
+  updateCount();
+  ta.addEventListener('input', updateCount);
+  optsEl.appendChild(counter);
 }
 
 function escapeHtml(s) {
@@ -1969,7 +2112,7 @@ async function runEvaluation() {
         name: S.name, email: S.email, phone: S.phone,
         exp: S.exp, role: S.role,
         location: S.location, expectedSalary: S.expectedSalary,
-        subject: S.subject || null,
+        subject: S.effectiveSubject || S.subject || null,
         assessmentAnswers: S.assessmentAnswers || [],
         questions: S.questions, answers: S.answers
       }),
@@ -2002,7 +2145,7 @@ async function runEvaluation() {
 // ═══════════════════════════════════════════════
 function newInterview() {
   S.name=''; S.email=''; S.phone=''; S.exp=''; S.role=''; S.location=''; S.expectedSalary=''; S.questions=[]; S.answers=[];
-  S.subject=''; S.assessmentQuestions=[]; S.assessmentAnswers=[]; S.assessmentIdx=0;
+  S.subject=''; S.effectiveSubject=''; S.assessmentQuestions=[]; S.assessmentAnswers=[]; S.assessmentIdx=0;
   S.assessmentLeft=getAssessDuration('');
   if (S.assessmentTimer) { clearInterval(S.assessmentTimer); S.assessmentTimer=null; }
   S.onAssessmentDone=null;
