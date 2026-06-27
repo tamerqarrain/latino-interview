@@ -157,7 +157,8 @@
   .orb-core.listening { box-shadow: 0 0 100px rgba(39,174,96,.35),  inset 0 0 40px rgba(39,174,96,.1);   border-color: rgba(39,174,96,.6); }
   .orb-core.thinking  { box-shadow: 0 0 80px  rgba(58,133,216,.3),  inset 0 0 30px rgba(58,133,216,.08); border-color: rgba(58,133,216,.5); }
 
-  .orb-L { font-family: 'DM Mono'; font-size: 58px; font-weight: 700; color: var(--gold); line-height: 1; }
+  .orb-L { font-family: 'DM Mono'; font-size: 58px; font-weight: 700; color: var(--gold); line-height: 1;
+            display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
 
   /* Soundwave (speaking / reading) */
   .soundwave {
@@ -681,7 +682,7 @@
 <div class="screen" id="setupScreen">
   <div class="setup-card fade-in">
     <div class="brand">
-      <div class="brand-orb"><span>L</span></div>
+      <div class="brand-orb"><img src="/assets/latino-logo.png" alt="لاتينو" onerror="this.outerHTML='<span>L</span>';" style="width:100%;height:100%;object-fit:contain;border-radius:50%;"></div>
       <h1>لاتينو</h1>
       <p>المقابلة المبدئية لفرز المرشحين · شبكة المدارس ورياض الأطفال</p>
     </div>
@@ -745,7 +746,7 @@
     <div class="ring ring-1"></div>
     <div class="ring ring-2"></div>
     <div class="ring ring-3"></div>
-    <div class="orb-core" id="orbCore"><div class="orb-L">L</div></div>
+    <div class="orb-core" id="orbCore"><div class="orb-L"><img src="/assets/latino-logo.png" alt="لاتينو" onerror="this.outerHTML='L';" style="width:80%;height:80%;object-fit:contain;border-radius:50%;display:block;"></div></div>
 
     <!-- Soundwave: visible while ElevenLabs is speaking -->
     <div class="soundwave" id="soundwave">
@@ -791,7 +792,7 @@
       <div class="type-timer-block">
         <span class="type-timer-icon">⏱</span>
         <span class="type-timer-label">الوقت المتبقي:</span>
-        <span id="typeTimer">٣:٠٠</span>
+        <span id="typeTimer">٥:٠٠</span>
       </div>
       <div class="type-char-block">
         <span id="typeCharCount">٠ حرف</span>
@@ -852,7 +853,7 @@
         <span id="assessCounter">السؤال ١ من ٢٥</span>
         <div class="assess-bar"><div class="assess-bar-fill" id="assessBarFill" style="width:4%;"></div></div>
       </div>
-      <div class="assess-timer" id="assessTimer">٣٠:٠٠</div>
+      <div class="assess-timer" id="assessTimer" title="الوقت المتبقي لهذا السؤال">٥:٠٠</div>
     </div>
 
     <div class="assess-body">
@@ -900,35 +901,38 @@
 //  CONSTANTS
 // ═══════════════════════════════════════════════
 const READ_SECONDS = 10;   // thinking/reading time after question is spoken
-const MAX_REC_SECONDS = 180; // hard cap on answer recording (3 minutes)
-// Per-subject time limits (seconds). Falls back to 30 min if subject not listed.
+const MAX_REC_SECONDS = 180; // hard cap on answer recording (3 minutes) — voice mode only
+const TYPE_SECONDS = 5 * 60;     // 5 minutes typing per Q1-Q8 question (and salary)
+const ASSESS_Q_SECONDS = 5 * 60; // 5 minutes per ASSESSMENT question
+// Per-subject total time limits (seconds). Kept as a hard upper-bound cap;
+// the visible timer is now per-question (5 min each).
 const ASSESS_DURATIONS = {
   'علوم':    30 * 60,   // 25 questions
-  'رياضيات': 40 * 60,   // 20 image-based questions (longer to read)
+  'رياضيات': 40 * 60,   // 20 image-based questions
   'English': 40 * 60,   // 42 questions
-  'عربي - المرحلة الدنيا': 60 * 60,   // 25 mixed-type Arabic items
-  'عربي - المرحلة العليا': 60 * 60,   // 41 mixed-type Arabic items
-  'عربي': 60 * 60,                    // legacy alias
+  'عربي - المرحلة الدنيا': 60 * 60,
+  'عربي - المرحلة العليا': 60 * 60,
+  'عربي': 60 * 60,
 };
 function getAssessDuration(subject) {
   return ASSESS_DURATIONS[subject] || (30 * 60);
 }
 
 // Arabic has two variants picked by the candidate's role.
-// "معلّم صف 1-3" → elementary; everyone else → upper grades.
 function effectiveAssessmentKey(subject, role) {
   if (subject === 'عربي') {
     return role === 'معلّم صف 1-3' ? 'عربي - المرحلة الدنيا' : 'عربي - المرحلة العليا';
   }
   return subject;
 }
-const CIRC = 2 * Math.PI * 26; // 163.4 — SVG circle circumference
+const CIRC = 2 * Math.PI * 26;
 
-// ── INPUT MODE ────────────────────────────────────────────
-// false → typing only (text editor is the default + only mode)
-// true  → original voice-first flow with optional "type instead" button
-// Flip to true to re-enable mic/recording for candidates.
+// ── INPUT/OUTPUT MODE ────────────────────────────────────────────
+// USE_VOICE_INPUT:   false → typing only (mic hidden / disabled)
+// USE_TTS_NARRATION: true  → Latino speaks questions, bridges, intro, thank-you, etc.
+//                            (Only mic input is disabled — TTS output stays on.)
 const USE_VOICE_INPUT = false;
+const USE_TTS_NARRATION = true;
 
 // ═══════════════════════════════════════════════
 //  STATE
@@ -938,6 +942,7 @@ const S = {
   subject: '', effectiveSubject: '',                              // selected subject (Teachers only); effectiveSubject is the resolved variant for Arabic
   assessmentQuestions: [], assessmentAnswers: [], assessmentIdx: 0,
   assessmentTimer: null, assessmentLeft: getAssessDuration(''),
+  assessmentQTimer: null, assessmentQLeft: 5 * 60,
   questions: [], answers: [],
   currentQ: 0, phase: 'idle',
   mediaRecorder: null, audioChunks: [],
@@ -1007,6 +1012,56 @@ document.addEventListener('click', (ev) => {
   const kind = btn.getAttribute('data-sfx') || 'click';
   if (typeof SFX[kind] === 'function') SFX[kind]();
 }, true);
+
+// ═══════════════════════════════════════════════
+//  ANTI-CHEAT — disable copy/paste/cut/right-click
+//  Prevents candidates from copying questions to search engines or
+//  pasting ready answers from the web.
+// ═══════════════════════════════════════════════
+// Block right-click context menu everywhere
+document.addEventListener('contextmenu', (ev) => {
+  // Allow only inside the setup screen's regular form inputs so users can fix typos
+  const onSetup = ev.target.closest && ev.target.closest('#setupScreen input, #setupScreen select');
+  if (onSetup) return;
+  ev.preventDefault();
+});
+
+// Block copy/cut/paste on assessment + interview surfaces
+function blockClipboard(ev) {
+  // Allow paste/copy ONLY in the setup form inputs (name/email/phone/etc.)
+  const onSetup = ev.target.closest && ev.target.closest('#setupScreen input');
+  if (onSetup) return;
+  ev.preventDefault();
+}
+document.addEventListener('copy',  blockClipboard);
+document.addEventListener('cut',   blockClipboard);
+document.addEventListener('paste', blockClipboard);
+
+// Block Ctrl+C / Ctrl+X / Ctrl+V / Ctrl+A keyboard shortcuts outside the setup form
+document.addEventListener('keydown', (ev) => {
+  if (!(ev.ctrlKey || ev.metaKey)) return;
+  const key = (ev.key || '').toLowerCase();
+  if (!['c','x','v','a'].includes(key)) return;
+  const onSetup = ev.target.closest && ev.target.closest('#setupScreen input');
+  if (onSetup) return;
+  ev.preventDefault();
+});
+
+// Also disable text selection on the assessment screen (prevents drag-to-copy)
+// — kept only on questions/options, not on the textarea (so candidates can edit their own text).
+const antiSelectStyle = document.createElement('style');
+antiSelectStyle.textContent = `
+  #assessScreen .assess-qtext,
+  #assessScreen .assess-option,
+  #assessScreen .assess-header,
+  #questionBox {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+`;
+document.head.appendChild(antiSelectStyle);
 
 // Converts role strings into clean spoken Arabic so ElevenLabs pronounces grades correctly.
 // e.g. "معلّم صف 1-3" → "مُعَلِّم صُفُوف مِنَ الْأَوَّلِ إِلَى الثَّالِثِ"
@@ -1119,9 +1174,11 @@ function refreshDots() {
 // ═══════════════════════════════════════════════
 //  ELEVENLABS TTS — speaks text, returns promise
 // ═══════════════════════════════════════════════
-async function speak(text) {
+async function speak(text, force = false) {
   return new Promise(async (resolve) => {
     if (S.ended) { resolve(); return; }
+    // Skip TTS unless explicitly forced (e.g. thank-you screen) or narration is enabled
+    if (!USE_TTS_NARRATION && !force) { resolve(); return; }
     setPhase('speaking');
     try {
       const res = await fetch('/api/speak', {
@@ -1269,7 +1326,7 @@ function switchToTyping() {
   };
 
   // Start a 3-minute typing countdown (same cap as voice)
-  let typeLeft = MAX_REC_SECONDS;
+  let typeLeft = TYPE_SECONDS;
   const timerEl = document.getElementById('typeTimer');
   const fmtTime = (s) => `${toAr(Math.floor(s/60))}:${toAr(s%60).padStart(2,'٠')}`;
   timerEl.textContent = fmtTime(typeLeft);
@@ -1782,16 +1839,39 @@ function startAssessment() {
 }
 
 function startAssessmentTimer() {
+  // Per-question timer is now driven by renderAssessmentQuestion().
+  // We still keep a global hard-cap (sum of all per-question times) that aborts
+  // the assessment if it ever runs long for some reason.
   if (S.assessmentTimer) clearInterval(S.assessmentTimer);
-  updateAssessmentTimerDisplay();
   S.assessmentTimer = setInterval(() => {
     S.assessmentLeft--;
-    updateAssessmentTimerDisplay();
     if (S.assessmentLeft <= 0) {
       clearInterval(S.assessmentTimer);
       S.assessmentTimer = null;
-      // Auto-submit when time runs out
       finalizeAssessment(true);
+    }
+  }, 1000);
+}
+
+// Per-question timer: starts fresh each time a question is rendered.
+// When it hits 0 → advance (or finalize if this is the last question).
+function startAssessmentQuestionTimer() {
+  if (S.assessmentQTimer) clearInterval(S.assessmentQTimer);
+  S.assessmentQLeft = ASSESS_Q_SECONDS;
+  updateAssessmentTimerDisplay();
+  S.assessmentQTimer = setInterval(() => {
+    S.assessmentQLeft--;
+    updateAssessmentTimerDisplay();
+    if (S.assessmentQLeft <= 0) {
+      clearInterval(S.assessmentQTimer);
+      S.assessmentQTimer = null;
+      const isLast = (S.assessmentIdx === S.assessmentQuestions.length - 1);
+      if (isLast) {
+        finalizeAssessment(true);
+      } else {
+        S.assessmentIdx++;
+        renderAssessmentQuestion();
+      }
     }
   }, 1000);
 }
@@ -1799,11 +1879,12 @@ function startAssessmentTimer() {
 function updateAssessmentTimerDisplay() {
   const t = document.getElementById('assessTimer');
   if (!t) return;
-  const m = Math.floor(S.assessmentLeft / 60);
-  const s = S.assessmentLeft % 60;
+  const left = (S.assessmentQLeft !== undefined ? S.assessmentQLeft : ASSESS_Q_SECONDS);
+  const m = Math.floor(left / 60);
+  const s = left % 60;
   t.textContent = `${toAr(m)}:${toAr(s).padStart(2,'٠')}`;
-  t.classList.toggle('warn',   S.assessmentLeft <= 300 && S.assessmentLeft > 60);
-  t.classList.toggle('danger', S.assessmentLeft <= 60);
+  t.classList.toggle('warn',   left <= 60 && left > 15);
+  t.classList.toggle('danger', left <= 15);
 }
 
 function renderAssessmentQuestion() {
@@ -1830,12 +1911,19 @@ function renderAssessmentQuestion() {
 
   // Render based on question type
   if (q.image) {
-    // Image MCQ: show source image, then A/B/C/D buttons
+    // Image MCQ: show source image, then A/B/C/D buttons.
+    // Constrain image height so it doesn't dominate the screen on tall questions.
     qTextEl.innerHTML = bodyHTML + `
-      <div style="text-align:center;margin-bottom:18px;">
-        <img src="${q.image}" alt="السؤال ${i+1}" style="max-width:100%;height:auto;border-radius:8px;border:1px solid var(--border);background:#fff;" />
+      <div style="text-align:center;margin-bottom:20px;">
+        <img src="${q.image}" alt="السؤال ${i+1}"
+             style="max-width:100%; max-height:55vh; height:auto; width:auto;
+                    border-radius:8px; border:1px solid var(--border); background:#fff;
+                    display:inline-block;" />
       </div>
-      <div style="font-size:14px;color:var(--text-dim);margin-bottom:8px;">اختر الإجابة الصحيحة:</div>
+      <div style="border-top: 2px dashed rgba(201,168,76,0.45); margin: 16px 0 14px;"></div>
+      <div style="font-size:15px; color:var(--gold); font-weight:600; text-align:center; margin-bottom:12px;">
+        ⬇ اختر إجابتك من الأزرار أدناه
+      </div>
     `;
     renderLetterOptions(optsEl, ['A','B','C','D'], currentAnswer);
   }
@@ -1877,6 +1965,9 @@ function renderAssessmentQuestion() {
   const answered = S.assessmentAnswers.filter(a => a && String(a).trim()).length;
   document.getElementById('assessSummary').textContent =
     `${toAr(answered)} من ${toAr(N)} تمت الإجابة`;
+
+  // Reset and start the per-question 5-minute timer
+  startAssessmentQuestionTimer();
 }
 
 // Render letter-only buttons (A/B/C/D row) — used for image MCQs
@@ -1889,11 +1980,15 @@ function renderLetterOptions(optsEl, letters, currentAnswer) {
     const btn = document.createElement('div');
     btn.className = 'assess-option' + (currentAnswer === letter ? ' selected' : '');
     btn.setAttribute('data-sfx', 'select');
-    btn.style.flex = '0 0 auto';
-    btn.style.minWidth = '90px';
+    btn.style.flex = '1 1 auto';
+    btn.style.minWidth = '110px';
+    btn.style.maxWidth = '160px';
     btn.style.justifyContent = 'center';
+    btn.style.padding = '18px';
+    btn.style.fontSize = '20px';
+    btn.style.fontWeight = '700';
     btn.onclick = () => selectAssessmentAnswer(letter);
-    btn.innerHTML = `<span class="assess-option-letter">${letter}</span>`;
+    btn.innerHTML = `<span class="assess-option-letter" style="font-size:22px;">${letter}</span>`;
     optsEl.appendChild(btn);
   });
 }
@@ -2038,7 +2133,8 @@ function confirmAssessSubmit() {
 
 // Called by the user clicking "submit" OR by timer expiry (autoSubmit=true)
 function finalizeAssessment(autoSubmit) {
-  if (S.assessmentTimer) { clearInterval(S.assessmentTimer); S.assessmentTimer = null; }
+  if (S.assessmentTimer)  { clearInterval(S.assessmentTimer);  S.assessmentTimer  = null; }
+  if (S.assessmentQTimer) { clearInterval(S.assessmentQTimer); S.assessmentQTimer = null; }
   console.log(`Assessment submitted (autoSubmit=${autoSubmit}). Selections:`, S.assessmentAnswers);
   const cb = S.onAssessmentDone;
   S.onAssessmentDone = null;
@@ -2051,7 +2147,8 @@ async function endEarly() {
   stopReadCountdown();
   stopRecCountdown();
   stopVisualizer();
-  if (S.assessmentTimer) { clearInterval(S.assessmentTimer); S.assessmentTimer = null; }
+  if (S.assessmentTimer)  { clearInterval(S.assessmentTimer);  S.assessmentTimer  = null; }
+  if (S.assessmentQTimer) { clearInterval(S.assessmentQTimer); S.assessmentQTimer = null; }
   if (S.onAssessmentDone) {
     const cb = S.onAssessmentDone;
     S.onAssessmentDone = null;
@@ -2100,7 +2197,7 @@ async function runEvaluation() {
   (async () => {
     if (S.ended) return;
     const thankSpeech = `شُكْراً لَكَ. شُكْراً لِحُضُورِكَ الْمُقَابَلَةَ. لَقَدِ اسْتَلَمْنَا إِجَابَاتِكَ، وَسَيَقُومُ فَرِيقُنَا بِمُرَاجَعَتِهَا وَالتَّوَاصُلِ مَعَكَ فِي أَقْرَبِ وَقْتٍ.`;
-    try { await speak(thankSpeech); } catch {}
+    try { await speak(thankSpeech, true); } catch {}
   })();
 
   // In the background: generate the evaluation and email it to HR.
@@ -2147,7 +2244,9 @@ function newInterview() {
   S.name=''; S.email=''; S.phone=''; S.exp=''; S.role=''; S.location=''; S.expectedSalary=''; S.questions=[]; S.answers=[];
   S.subject=''; S.effectiveSubject=''; S.assessmentQuestions=[]; S.assessmentAnswers=[]; S.assessmentIdx=0;
   S.assessmentLeft=getAssessDuration('');
-  if (S.assessmentTimer) { clearInterval(S.assessmentTimer); S.assessmentTimer=null; }
+  if (S.assessmentTimer)  { clearInterval(S.assessmentTimer);  S.assessmentTimer=null; }
+  if (S.assessmentQTimer) { clearInterval(S.assessmentQTimer); S.assessmentQTimer=null; }
+  S.assessmentQLeft = ASSESS_Q_SECONDS;
   S.onAssessmentDone=null;
   S.currentQ=0; S.phase='idle'; S.ended=false;
   S.typingMode=false;
