@@ -68,20 +68,22 @@
 
   .brand { text-align: center; margin-bottom: 36px; }
   .brand-orb {
-    width: 80px; height: 80px; border-radius: 50%;
-    border: 1.5px solid var(--gold);
+    width: 110px; height: 110px; border-radius: 50%;
+    border: 2px solid var(--gold);
     display: flex; align-items: center; justify-content: center;
-    margin: 0 auto 14px;
+    margin: 0 auto 16px;
     background: radial-gradient(circle at 35% 30%, #1a2535, var(--bg));
     box-shadow: 0 0 40px rgba(201,168,76,0.18), inset 0 0 20px rgba(201,168,76,0.06);
     position: relative;
+    overflow: hidden; /* mask anything that extends past the circle */
   }
   .brand-orb::after {
     content: '';
     position: absolute; inset: -5px; border-radius: 50%;
     border: 1px solid rgba(201,168,76,0.18);
+    pointer-events: none;
   }
-  .brand-orb span { font-family: 'DM Mono'; font-size: 32px; font-weight: 700; color: var(--gold); }
+  .brand-orb span { font-family: 'DM Mono'; font-size: 42px; font-weight: 700; color: var(--gold); }
   .brand h1 { font-size: 30px; font-weight: 900; color: var(--text); }
   .brand p { font-size: 13px; color: var(--text-dim); margin-top: 5px; }
 
@@ -145,12 +147,13 @@
 
   .orb-core {
     position: relative; z-index: 3;
-    width: 148px; height: 148px; border-radius: 50%;
+    width: 180px; height: 180px; border-radius: 50%;
     background: radial-gradient(circle at 35% 30%, #1c2840, #070b0f);
     border: 1px solid rgba(201,168,76,.28);
     display: flex; align-items: center; justify-content: center;
     box-shadow: 0 0 60px rgba(201,168,76,.08), inset 0 0 30px rgba(201,168,76,.04);
     transition: box-shadow .5s, border-color .5s;
+    overflow: hidden; /* mask the avatar into a perfect circle */
   }
   .orb-core.speaking  { box-shadow: 0 0 100px rgba(201,168,76,.4),  inset 0 0 40px rgba(201,168,76,.12);  border-color: rgba(201,168,76,.7); }
   .orb-core.reading   { box-shadow: 0 0 100px rgba(142,68,173,.4),  inset 0 0 40px rgba(142,68,173,.12); border-color: rgba(142,68,173,.7); }
@@ -633,8 +636,8 @@
     .room-role { font-size: 10px; }
 
     .orb-wrap { width: 200px; height: 200px; margin-bottom: 60px; }
-    .orb-core { width: 110px; height: 110px; }
-    .orb-L { font-size: 42px; }
+    .orb-core { width: 140px; height: 140px; }
+    .orb-L { font-size: 50px; }
 
     .status-wrap { padding: 0 18px; }
     .status-msg { font-size: 17px; min-height: 80px; }
@@ -671,7 +674,7 @@
 
   @media (max-width: 380px) {
     .orb-wrap { width: 170px; height: 170px; }
-    .orb-core { width: 96px; height: 96px; }
+    .orb-core { width: 120px; height: 120px; }
     .ctrl { padding: 8px 12px; font-size: 12px; }
   }
 </style>
@@ -682,7 +685,7 @@
 <div class="screen" id="setupScreen">
   <div class="setup-card fade-in">
     <div class="brand">
-      <div class="brand-orb"><img src="/assets/latino-logo.png" alt="لاتينو" onerror="this.outerHTML='<span>L</span>';" style="width:100%;height:100%;object-fit:contain;border-radius:50%;"></div>
+      <div class="brand-orb"><img src="/assets/latino-logo.png" alt="لاتينو" onerror="this.outerHTML='<span>L</span>';" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>
       <h1>لاتينو</h1>
       <p>المقابلة المبدئية لفرز المرشحين · شبكة المدارس ورياض الأطفال</p>
     </div>
@@ -746,7 +749,7 @@
     <div class="ring ring-1"></div>
     <div class="ring ring-2"></div>
     <div class="ring ring-3"></div>
-    <div class="orb-core" id="orbCore"><div class="orb-L"><img src="/assets/latino-logo.png" alt="لاتينو" onerror="this.outerHTML='L';" style="width:80%;height:80%;object-fit:contain;border-radius:50%;display:block;"></div></div>
+    <div class="orb-core" id="orbCore"><div class="orb-L"><img src="/assets/latino-logo.png" alt="لاتينو" onerror="this.outerHTML='L';" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;"></div></div>
 
     <!-- Soundwave: visible while ElevenLabs is speaking -->
     <div class="soundwave" id="soundwave">
@@ -853,7 +856,7 @@
         <span id="assessCounter">السؤال ١ من ٢٥</span>
         <div class="assess-bar"><div class="assess-bar-fill" id="assessBarFill" style="width:4%;"></div></div>
       </div>
-      <div class="assess-timer" id="assessTimer" title="الوقت المتبقي لهذا السؤال">٥:٠٠</div>
+      <div class="assess-timer" id="assessTimer" title="الوقت المتبقي لهذا السؤال">١:٠٠</div>
     </div>
 
     <div class="assess-body">
@@ -903,7 +906,25 @@
 const READ_SECONDS = 10;   // thinking/reading time after question is spoken
 const MAX_REC_SECONDS = 180; // hard cap on answer recording (3 minutes) — voice mode only
 const TYPE_SECONDS = 5 * 60;     // 5 minutes typing per Q1-Q8 question (and salary)
-const ASSESS_Q_SECONDS = 5 * 60; // 5 minutes per ASSESSMENT question
+
+// Per-question timer durations in the ASSESSMENT (depends on question type).
+// Multiple choice / true-false → short.   Essay/typing questions → 5 min.
+const ASSESS_TIMER_BY_TYPE = {
+  truefalse:        45,         // T/F is fastest
+  mcq3:             60,         // 1 min for 3-option MCQ
+  mcq4:             60,         // 1 min for 4-option MCQ
+  image:            90,         // Image MCQ needs extra time to study the diagram
+  openended:        5 * 60,     // Essay typing → 5 minutes
+  vowelization:     5 * 60,     // اشكل (diacritics) → 5 minutes
+  numbers_to_words: 5 * 60,     // Number → words → 5 minutes
+};
+function getQuestionTimerDuration(q) {
+  if (!q) return 60;
+  if (q.image) return ASSESS_TIMER_BY_TYPE.image;
+  const type = q.type || 'mcq4';
+  return ASSESS_TIMER_BY_TYPE[type] || 60;
+}
+const ASSESS_Q_SECONDS = 5 * 60; // legacy default — used only as a fallback
 // Per-subject total time limits (seconds). Kept as a hard upper-bound cap;
 // the visible timer is now per-question (5 min each).
 const ASSESS_DURATIONS = {
@@ -1325,7 +1346,12 @@ function switchToTyping() {
     document.getElementById('typeCharCount').textContent = toAr(ta.value.length) + ' حرف';
   };
 
-  // Start a 3-minute typing countdown (same cap as voice)
+  // Start a 5-minute typing countdown for THIS question.
+  // CRITICAL: clear any previous timer first so we don't get orphaned intervals
+  // (otherwise old timers from previous questions keep ticking and force premature
+  // auto-submits on later questions — making it feel like "5 min total" instead of per-Q).
+  if (S.typeTimer) { clearInterval(S.typeTimer); S.typeTimer = null; }
+
   let typeLeft = TYPE_SECONDS;
   const timerEl = document.getElementById('typeTimer');
   const fmtTime = (s) => `${toAr(Math.floor(s/60))}:${toAr(s%60).padStart(2,'٠')}`;
@@ -1347,9 +1373,12 @@ function switchToTyping() {
 
 // Called when finishing a typed answer (called by doneAnswering when typingMode is on)
 function finishTyping() {
-  if (S.typeTimer) { clearInterval(S.typeTimer); S.typeTimer = null; }
   const ta = document.getElementById('typeAnswer');
   const text = (ta.value || '').trim();
+  // Empty answer → don't tear down. doneAnswering() will re-show the panel/timer.
+  if (!text || text.length < 2) return text;
+  // Non-empty: clean shutdown
+  if (S.typeTimer) { clearInterval(S.typeTimer); S.typeTimer = null; }
   document.getElementById('typePanel').style.display = 'none';
   S.typingMode = false;
   return text;
@@ -1616,11 +1645,17 @@ async function doneAnswering() {
 
   // If nothing was captured, let the candidate retry instead of silently failing
   if (!transcript || transcript.trim().length < 2) {
-    if (S.typingMode) {
-      // Shouldn't happen — but just in case, re-show the panel
+    // If we were typing OR voice input is globally disabled → re-prompt typing (NEVER start mic)
+    if (S.typingMode || !USE_VOICE_INPUT) {
       setStatus('purple', 'لم تكتب إجابة', 'الرجاء كتابة إجابتك ثم الضغط على "انتهيت".');
-      document.getElementById('typePanel').style.display = '';
+      // Make sure the typing panel + textarea are visible and focused
+      const panel = document.getElementById('typePanel');
+      const ta    = document.getElementById('typeAnswer');
+      panel.style.display = '';
+      S.typingMode = true;
+      try { ta.focus(); } catch {}
       document.getElementById('btnNext').disabled = false;
+      document.getElementById('btnSkip').disabled = false;
       return;
     }
     setStatus('purple', 'لم نسمع إجابة', 'لم يُلتقط أي صوت. سيبدأ التسجيل من جديد — تحدّث الآن.');
@@ -1854,10 +1889,12 @@ function startAssessmentTimer() {
 }
 
 // Per-question timer: starts fresh each time a question is rendered.
+// Duration depends on the question type (T/F 45s, MCQ 60s, image 90s, essay 5min).
 // When it hits 0 → advance (or finalize if this is the last question).
 function startAssessmentQuestionTimer() {
   if (S.assessmentQTimer) clearInterval(S.assessmentQTimer);
-  S.assessmentQLeft = ASSESS_Q_SECONDS;
+  const q = S.assessmentQuestions[S.assessmentIdx];
+  S.assessmentQLeft = getQuestionTimerDuration(q);
   updateAssessmentTimerDisplay();
   S.assessmentQTimer = setInterval(() => {
     S.assessmentQLeft--;
@@ -1879,12 +1916,15 @@ function startAssessmentQuestionTimer() {
 function updateAssessmentTimerDisplay() {
   const t = document.getElementById('assessTimer');
   if (!t) return;
-  const left = (S.assessmentQLeft !== undefined ? S.assessmentQLeft : ASSESS_Q_SECONDS);
+  const left = (S.assessmentQLeft !== undefined ? S.assessmentQLeft : 60);
   const m = Math.floor(left / 60);
   const s = left % 60;
   t.textContent = `${toAr(m)}:${toAr(s).padStart(2,'٠')}`;
-  t.classList.toggle('warn',   left <= 60 && left > 15);
-  t.classList.toggle('danger', left <= 15);
+  // Thresholds work cleanly for both short (45s) and long (5min) timers:
+  //   warn  → orange at ≤ 30 sec
+  //   danger→ red+pulse at ≤ 10 sec
+  t.classList.toggle('warn',   left <= 30 && left > 10);
+  t.classList.toggle('danger', left <= 10);
 }
 
 function renderAssessmentQuestion() {
