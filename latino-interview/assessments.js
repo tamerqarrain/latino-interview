@@ -455,108 +455,32 @@ const ASSESSMENTS = {
   "عربي": [],
 
   "رياضيات": [
-    // ── Strategy:
-    // Pure TEXT  → question fully readable from the document (no diagram needed)
-    // IMAGE      → diagram/formula is the question; clean text options rendered below
-    // Source: Math-FINAL.docx — 20 questions
+    // Source: Math-FINAL001.docx — 20 questions
+    // All questions rendered as imageOnly — each image contains the full question
+    // header, body, diagram (where applicable), and all answer options.
+    // EMF-broken images (Q4, Q13, Q18, Q19, Q20) are sourced from the clean PDF render.
+    // imageOnly:true → client shows letter buttons A/B/C/D below the image.
 
-    // Q1 — تعريف الاستبانة (pure text)
-    { q: "تسمى مجموعة العبارات المترابطة، التي توضع في نموذج يساعد في جمع المعلومات من عينة الدراسة المختارة من قبل الباحث:",
-      options: { A: "المقابلات", B: "الملاحظات", C: "الاختبارات", D: "الاستبانات" } },
-
-    // Q2 — إدارة الصف / طلبة غير مندمجين (pure text)
-    { q: "في إحدى الحصص، وأثناء عمل الطلبة في أربع مجموعات، لاحظ المعلم أن ثلاثة طلبة في مجموعات مختلفة لا يقومون بأي عمل أثناء عمل المجموعات وغير مندمجين في المهمة التي تقوم بها المجموعة، ما التصرف السليم في هذه الحالة؟",
-      options: {
-        A: "إعادة توزيع الطلبة غير المندمجين في المجموعات واستكمال المهمات مع زملائهم في المجموعات الجديدة.",
-        B: "التوجه نحو المجموعات التي تضم الطلبة غير المندمجين ومناقشتهم في المهمات المسندة لأعضاء الفريق.",
-        C: "الطلب من الطلبة الثلاثة غير المندمجين استكمال المهمة بشكل مستقل ومناقشتها مع المعلم بشكل فردي.",
-        D: "تجاهل الموضوع مؤقتاً لعدم إحراج الطلبة، ثم التحدث معهم على انفراد بعد انتهاء الحصة خارج الصف."
-      } },
-
-    // Q3 — ناتج 10 + 6 ÷ 2 × 3 (image: expression box)
-    { image: "/assets/math/q03.png",
-      options: { A: "19", B: "24", C: "‑19", D: "11" } },
-
-    // Q4 — قيمة (2¹⁰ × 5¹⁵) ÷ 10¹⁰ (image: formula)
-    // Options as read from the document: ¹⁰5 / ¹⁰2 / ⁵5 / ⁵2  → rendered as superscript text
-    { image: "/assets/math/q04.png",
-      options: { A: "5¹⁰", B: "2¹⁰", C: "5⁵", D: "2⁵" } },
-
-    // Q5 — TIMSS / الاختبارات الدولية (pure text)
-    { q: "إن أفضل إجراء من أجل أن تُظهِر نتائج الاختبارات الدولية (TIMSS) الواقع الحقيقي لطلبة المدارس الأردنية هو:",
-      options: {
-        A: "تدريب الطلبة على فنيات الاختبارات الدولية من خلال الأنشطة داخل الصف",
-        B: "تدريب الطلبة على فنيات الاختبارات الدولية من خلال الأنشطة خارج الصف",
-        C: "تدريب المعلمين على البحث العلمي",
-        D: "تدريب الطلبة على البحث العلمي"
-      } },
-
-    // Q6 — أي عدد إذا تم تربيعه يصبح الأصغر (image: number line A=-2, B=-1, C=½, D=1)
-    { image: "/assets/math/q06.png",
-      options: { A: "B", B: "C", C: "D", D: "A" } },
-
-    // Q7 — معادلة مسألة كتب صالح (pure text)
-    { q: "اشترى صالح ثلاثة كتب لها نفس السعر وأعطى البائع مبلغ 50 ديناراً، فأعاد له البائع 11 ديناراً. ما سعر الكتاب؟ المعادلة التي تمثل هذه المسألة هي:",
-      options: { A: "3x − 11 = 50", B: "3x + 11 = 50", C: "3(x + 11) = 50", D: "3(x − 11) = 50" } },
-
-    // Q8 — f(x) = x² + 3x + k، f(k)=0، k≠0، إيجاد f(1) (image: formula)
-    { image: "/assets/math/q08.png",
-      options: { A: "k − 4", B: "4", C: "k", D: "0" } },
-
-    // Q9 — عدد المثلثات في النمط السادس (image: triangle pattern diagram)
-    { image: "/assets/math/q09.png",
-      options: { A: "7", B: "13", C: "10", D: "16" } },
-
-    // Q10 — a·b = 105، a < b، أقل قيمة لـ b−a (pure text)
-    { q: "إذا كان a، b عددين صحيحين موجبين حيث أن: a · b = 105، وكانت a < b، فإن أقل قيمة للمقدار: b − a",
-      options: { A: "6", B: "8", C: "16", D: "21" } },
-
-    // Q11 — هندسة الظل / الطفل والجدار والمصباح (image: diagram with triangle)
-    { image: "/assets/math/q11.png",
-      options: { A: "2", B: "4", C: "6", D: "8" } },
-
-    // Q12 — ثلاث دوائر متماسة أقطارها 1 و2 و3، مساحة المثلث (image: circles diagram)
-    { image: "/assets/math/q12.png",
-      options: { A: "10", B: "12", C: "16", D: "6" } },
-
-    // Q13 — مربع ضلعه 3، المستقيمات NC و MC تقسمه لثلاث مساحات متساوية، ما طول MC (image: square diagram)
-    { image: "/assets/math/q13.png",
-      options: { A: "3", B: "4", C: "√14", D: "√13" } },
-
-    // Q14 — رسم الأستاذ خالد الشكل الآتي، ما المفهوم الذي يريد توضيحه (image: parallelogram)
-    { image: "/assets/math/q14.png",
-      options: {
-        A: "مساحة المستطيل",
-        B: "مساحة متوازي الأضلاع",
-        C: "مساحة المربع",
-        D: "مساحة مثلث قائم الزاوية"
-      } },
-
-    // Q15 — مربع abcd طول ضلعه 28cm، ما مساحة المربع المظلل (image: square with shaded region)
-    { image: "/assets/math/q15.png",
-      options: { A: "100", B: "121", C: "144", D: "400" } },
-
-    // Q16 — عائلة في مطعم / سعر وجبة البالغ (pure text)
-    { q: "ذهبت عائلة مكوّنة من أب وأم و5 أطفال إلى مطعم، إذا كان سعر الوجبة للطفل نصف سعر الوجبة للبالغ، كم قيمة وجبة البالغ إذا دفع الأب 405 دنانير؟",
-      options: { A: "30", B: "45", C: "60", D: "90" } },
-
-    // Q17 — غرفة مستطيلة محيطها 48م، تصبح مربعة بزيادة العرض ونقص الطول (pure text)
-    { q: "غرفة مستطيلة محيطها 48 متراً، لو زاد عرضها 2 متر ونقص طولها 2 متر لأصبحت مربعة. ما مساحتها الجديدة؟",
-      options: { A: "121", B: "169", C: "144", D: "400" } },
-
-    // Q18 — مثلث ضلعان 6cm وزاوية محصورة 60°، الضلع الثالث
-    // C and D options are missing in the source image — using known cosine-rule values
-    { q: "طول الضلع الأول في مثلث 6 cm، وطول الضلع الثاني 6 cm، وقياس الزاوية المحصورة بينهما 60°. فإن طول الضلع الثالث يساوي:",
-      options: { A: "6", B: "3", C: "6√2", D: "3√2" } },
-
-    // Q19 — ضعف العدد 2⁸
-    // The base number is an embedded image in source; from context: double of 2⁸
-    { q: "ضعف العدد 2⁸ يساوي:",
-      options: { A: "2¹⁶", B: "2¹⁰", C: "2⁹", D: "2¹²" } },
-
-    // Q20 — دائرة داخل مربع مساحته 900cm²، المسافة بين A و B (image: circle-in-square diagram)
-    { image: "/assets/math/q20.png",
-      options: { A: "90", B: "15", C: "15√2 − 15", D: "30√2 − 30" } },
+    { image: "/assets/math/q01.png", imageOnly: true },  // Q1  — تعريف الاستبانة
+    { image: "/assets/math/q02.png", imageOnly: true },  // Q2  — إدارة الصف
+    { image: "/assets/math/q03.png", imageOnly: true },  // Q3  — ناتج 10+6÷2×3
+    { image: "/assets/math/q04.png", imageOnly: true },  // Q4  — قيمة (2¹⁰×5¹⁵)/10¹⁰
+    { image: "/assets/math/q05.png", imageOnly: true },  // Q5  — TIMSS
+    { image: "/assets/math/q06.png", imageOnly: true },  // Q6  — خط الأعداد
+    { image: "/assets/math/q07.png", imageOnly: true },  // Q7  — معادلة كتب صالح
+    { image: "/assets/math/q08.png", imageOnly: true },  // Q8  — f(x)=x²+3x+k
+    { image: "/assets/math/q09.png", imageOnly: true },  // Q9  — عدد المثلثات النمط السادس
+    { image: "/assets/math/q10.png", imageOnly: true },  // Q10 — a·b=105، أقل b−a
+    { image: "/assets/math/q11.png", imageOnly: true },  // Q11 — هندسة الظل
+    { image: "/assets/math/q12.png", imageOnly: true },  // Q12 — ثلاث دوائر متماسة
+    { image: "/assets/math/q13.png", imageOnly: true },  // Q13 — مربع NC و MC (√14/√13)
+    { image: "/assets/math/q14.png", imageOnly: true },  // Q14 — متوازي الأضلاع
+    { image: "/assets/math/q15.png", imageOnly: true },  // Q15 — مربع abcd 28cm مظلل
+    { image: "/assets/math/q16.png", imageOnly: true },  // Q16 — عائلة في مطعم
+    { image: "/assets/math/q17.png", imageOnly: true },  // Q17 — غرفة مستطيلة 48م
+    { image: "/assets/math/q18.png", imageOnly: true },  // Q18 — مثلث 6cm زاوية 60° (6√2/3√2)
+    { image: "/assets/math/q19.png", imageOnly: true },  // Q19 — ضعف 2⁸ (2¹⁶/2¹⁰/2⁹/2¹²)
+    { image: "/assets/math/q20.png", imageOnly: true },  // Q20 — دائرة في مربع 900cm² (15√2-15)
   ],
 
   "English": [
