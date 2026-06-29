@@ -188,6 +188,9 @@ async function gradeAssessment({ subject, candidateAnswers }) {
     }
 
     qText += `إجابة المرشح: ${sel}`;
+    // If question has a pre-defined correct answer, supply it explicitly so Claude
+    // uses it rather than inferring — this overrides any ambiguity in the model's knowledge.
+    if (item.correct) qText += `\n[الإجابة الصحيحة المحددة مسبقاً: ${item.correct} — استخدمها كما هي]`;
     contentBlocks.push({ type: 'text', text: qText });
   }
 
@@ -402,6 +405,7 @@ app.post('/api/speak', async (req, res) => {
             similarity_boost:  0.82,
             style:             0.30,
             use_speaker_boost: true,
+            speed:             1.15,
           },
         }),
       }

@@ -210,7 +210,8 @@ const ASSESSMENTS = {
     { type: "truefalse", marks: 2, q: "تناولُ المشروبات السّاخنة يمنح الدّفء للجسم. كلمة (تناولُ) فعل مضارع." },
     { type: "truefalse", marks: 2, q: "همزة (الْتِفات) همزة وصل لأنّها تبدأ ب (ال التّعريف)." },
     { type: "truefalse", marks: 2, q: "الكلمات التّالية كلّها جمع مذكّر سالم (معلّمونَ، مراقبينَ، عالِمونَ، بساتينَ، مساعدينَ)." },
-    { type: "truefalse", marks: 2, q: "استعانتِ المعلّمة بوسيلةٍ لإيضاح الدّرس. التّاء في (استعانت) هي تاء التّأنيث." },
+    { q: "استعانتِ المعلّمة بوسيلةٍ لإيضاح الدّرس. التّاء في (استعانت) هي تاء التّأنيث.", type: "mcq4", marks: 2,
+      options: { A: "KD", B: "KC", C: "KB", D: "KA" } },
     { type: "truefalse", marks: 2, q: "مساعدو الإدارة نظّموا العمل. كتابة كلمة (مساعدو) خاطئة دون ألف." },
     { type: "truefalse", marks: 2, q: "عندما يقع الطّالب بخطأ أثناء القراءة، على المعلّم تصويب هذا الخطأ بنفسه." },
     { type: "truefalse", marks: 2, q: "الكلمات التّالية كلّها أفعال (يساعدُ، صاعد، انتبهْ، يتفاعلُ)." },
@@ -404,11 +405,12 @@ const ASSESSMENTS = {
       },
     },
 
-    // ─── Q6: 5 vocative vowelization items (1 mark each = 5 marks) ───
+    // ─── Q6: vowelization — اضبط حركة الحرف + 5 vocative items (6 marks total) ───
     {
-      sectionStart: "السؤال السّادس — اضبط المنادى وفق ما هو مبيّن (٥ علامات)",
+      sectionStart: "السؤال السّادس — اضبط حركة الحرف الّذي تحته خطٌّ في الكلمات الآتية (٦ علامات)",
       type: "vowelization", marks: 1,
-      q: "يا سعيد — (اسم علم).\nاضبط (سعيد).",
+      q: "اضبط حركة الحرف الّذي تحته خطّ في الكلمات المخطوط تحتها في الجمل الآتية:
+يا سعيد — (اسم علم).\nاضبط (سعيد).",
       rubric: "الإجابة الصحيحة: يا سعيدُ (المنادى علم مبني على الضم). علامة كاملة = 1.",
     },
     {
@@ -432,22 +434,19 @@ const ASSESSMENTS = {
       rubric: "الإجابة الصحيحة: يا طيّبًا قلبُه (الشبيه بالمضاف منصوب بالفتحة المنوّنة). علامة كاملة = 1.",
     },
 
-    // ─── Q7: 3 numbers-to-words conversions (1 mark each = 3 marks) ───
+    // ─── Q7: 2 numbers-to-words cheque conversions (1.5 marks each = 3 marks) ───
     {
-      sectionStart: "السؤال السّابع — حوّل الأرقام إلى كلمات مراعيًا أحكام العدد (٣ علامات)",
+      sectionStart: "السّؤال السّابع — حوّل الأرقام في الشّيكات التّالية إلى كلمات مراعيًا أحكام العدد وحركة المعدود من كلّ وجهٍ (ثلاث علامات)",
       type: "numbers_to_words", marks: 1,
-      q: "اكتب الرقم 15 كلمةً، مع كلمة (كتابًا) معدودًا (أي: ١٥ كتابًا).",
-      rubric: "الإجابة الصحيحة: خمسة عشر كتابًا (العدد المركب يخالف المعدود في الجزء الأول ويوافقه في الجزء الثاني — لذا (خمسة) لأنّ المعدود مذكّر). علامة كاملة = 1.",
+      q: "ادفعوا لأمر السّيّد ________________________ 75 ( درهمًا ) فقط.
+اكتب العدد 75 بالكلمات مع (درهمًا) معدودًا، مراعيًا أحكام العدد.",
+      rubric: "الإجابة الصحيحة: خمسةٌ وسبعونَ درهمًا (العدد المركب من عقود: الجزء الأول يخالف المعدود فـ(خمسة) لأن درهم مذكّر، والعقد (سبعون) لا يتأثر. المعدود منصوب منوّن لأنه تمييز). علامة كاملة = 1.",
     },
     {
-      type: "numbers_to_words", marks: 1,
-      q: "اكتب الرقم 22 كلمةً، مع كلمة (طالبةً) معدودًا (أي: ٢٢ طالبةً).",
-      rubric: "الإجابة الصحيحة: اثنتان وعشرون طالبةً (لأنّ المعدود مؤنث، والعدد (اثنتان) يطابق المعدود). علامة كاملة = 1.",
-    },
-    {
-      type: "numbers_to_words", marks: 1,
-      q: "اكتب الرقم 100 كلمةً، مع كلمة (دينارٍ) معدودًا (أي: ١٠٠ دينار).",
-      rubric: "الإجابة الصحيحة: مئة دينارٍ (مئة لفظ ثابت لا يتأثر بالمعدود، والمعدود مفرد مجرور بالإضافة). علامة كاملة = 1.",
+      type: "numbers_to_words", marks: 2,
+      q: "ادفعوا لأمر السّيّد ________________________ 315 ( درهمًا ) فقط.
+اكتب العدد 315 بالكلمات مع (درهمًا) معدودًا، مراعيًا أحكام العدد.",
+      rubric: "الإجابة الصحيحة: خمسةَ عشرَ وثلاثمئةِ درهمًا (أو: ثلاثمئةٍ وخمسةَ عشرَ درهمًا). المئات (ثلاثمئة) لا تتأثر بالجنس. العشرة: (خمسةَ عشرَ) لأن درهم مذكّر فيخالف في الجزء الأول. المعدود تمييز منصوب منوّن. علامة كاملة = 2.",
     },
   ],
 
@@ -507,9 +506,9 @@ const ASSESSMENTS = {
     { q: "Which of the following is an example of alliteration?",
       options: { A: "\"She sells seashells by the seashore.\"", B: "\"The cat in the hat sat on the mat.\"", C: "\"Peter Piper picked a peck of pickled peppers.\"", D: "\"How much wood would a woodchuck chuck if a woodchuck could chuck wood?\"" } },
     { q: "Teacher: \"Who has a vehicle that can carry twenty people at once? Hint, many of you rode in one today!\" Students: \"A bus driver.\" The previous scenario is an example of a teaching strategy used in listening and speaking classes. It is known as ______.",
-      options: { A: "selecting", B: "inferring", C: "elaborating", D: "anticipating" } },
+      options: { A: "selecting", B: "inferring", C: "elaborating", D: "anticipating" }, correct: "B" },
     { q: "A student wrote, \"I was looking to my lost wallet and the plane took away.\" This student needs help with ______.",
-      options: { A: "adverbs", B: "prepositions", C: "phrasal verbs", D: "transactional verbs" } },
+      options: { A: "adverbs", B: "prepositions", C: "phrasal verbs", D: "transactional verbs" }, correct: "C" },
     { q: "The team's ___ efforts resulted in a groundbreaking scientific discovery.",
       options: { A: "collaborative", B: "ambivalent", C: "facetious", D: "eclectic" } },
     { q: "Which sentence is correct?",
@@ -521,7 +520,7 @@ const ASSESSMENTS = {
     { q: "She gave a ______ shrug when asked if she wanted to go to the party, clearly showing she didn't really care about the plan.",
       options: { A: "breeze through", B: "valiant", C: "run on empty", D: "half-hearted" } },
     { q: "\"I should have been practising every day, but I hadn't taken the trumpet out of the box for weeks.\" The underlined verb in the sentence is used to indicate ______.",
-      options: { A: "strong obligation", B: "deduction", C: "no obligation", D: "mild obligation" } },
+      options: { A: "strong obligation", B: "deduction", C: "no obligation", D: "mild obligation" }, correct: "D" },
     { q: "\"You shouldn't have told him the answers.\" The sentence that has the same meaning as the above is:",
       options: { A: "You were meant to tell him the answers.", B: "You aren't meant to tell him the answers.", C: "You weren't bound to tell him the answers.", D: "You weren't meant to tell him the answers." } },
     { q: "\"Because they know critical thinking is important, teachers try to include it in lessons.\" The sentence with the correct participle clause version is:",
@@ -567,7 +566,7 @@ const ASSESSMENTS = {
     { q: "\"There's no need to worry. You'll be great!\" The underlined expression can be replaced by ______.",
       options: { A: "I'm so sorry to hear that", B: "What's the worst that could happen?", C: "I am worried sick", D: "I am walking on air" } },
     { q: "In natural speech, what happens in the phrase \"next day\"?",
-      options: { A: "Elision", B: "Intrusion", C: "Assimilation", D: "Linking" } },
+      options: { A: "Elision", B: "Intrusion", C: "Assimilation", D: "Linking" }, correct: "C" },
     { q: "What is the correct phonetic transcription for the word \"schedule\" (British English)?",
       options: { A: "/skɛduːl/", B: "/ʃɛdjuːl/", C: "/ʃɛdʒuːl/", D: "/skɛdʒuːl/" } },
     { q: "Complete: \"I'll have to ___\"",
