@@ -455,13 +455,14 @@ const ASSESSMENTS = {
   "عربي": [],
 
   "رياضيات": [
-    // Math questions: HYBRID format — image shows the diagram/question text,
-    // options rendered as CLEAN TEXT below the image (avoids source PDF defects:
-    // mangled superscripts, missing values, jumbled layouts).
-    // Q1 — Definition of questionnaires
+    // ─── HYBRID format: image carries the diagram/formula, clean text options below ───
+    // Source: Math-FINAL (1).docx  —  20 questions
+
+    // Q1 — تعريف الاستبانة (image has full question text)
     { image: "/assets/math/q01.png",
       options: { A: "المقابلات", B: "الملاحظات", C: "الاختبارات", D: "الاستبانات" } },
-    // Q2 — Classroom management
+
+    // Q2 — إدارة الصف / طلبة غير مندمجين (image has full question text)
     { image: "/assets/math/q02.png",
       options: {
         A: "إعادة توزيع الطلبة غير المندمجين في المجموعات واستكمال المهمات مع زملائهم في المجموعات الجديدة.",
@@ -469,73 +470,87 @@ const ASSESSMENTS = {
         C: "الطلب من الطلبة الثلاثة غير المندمجين استكمال المهمة بشكل مستقل ومناقشتها مع المعلم بشكل فردي.",
         D: "تجاهل الموضوع مؤقتاً لعدم إحراج الطلبة، ثم التحدث معهم على انفراد بعد انتهاء الحصة خارج الصف."
       } },
-    // Q3 — 10 + 6 ÷ 2 × 3
+
+    // Q3 — ترتيب العمليات (image carries the expression; options from docx)
     { image: "/assets/math/q03.png",
-      options: { A: "19", B: "24", C: "-19", D: "11" } },
-    // Q4 — (2¹⁰ × 5¹⁵) / 10¹⁰  →  5⁵
+      options: { A: "19", B: "24", C: "‑19", D: "11" } },
+
+    // Q4 — قوى الأعداد (image carries the formula; options from docx)
     { image: "/assets/math/q04.png",
-      options: { A: "5¹⁰", B: "2¹⁰", C: "5⁵", D: "2⁵" } },
-    // Q5 — TIMSS best practice
+      options: { A: "10⁵", B: "10²", C: "5⁵", D: "5²" } },
+
+    // Q5 — TIMSS / الاختبارات الدولية (image has full question text)
     { image: "/assets/math/q05.png",
       options: {
-        A: "تدريب الطلبة على فنيّات الاختبارات الدوليّة من خلال الأنشطة داخل الصفّ",
-        B: "تدريب الطلبة على فنيّات الاختبارات الدوليّة من خلال الأنشطة خارج الصفّ",
-        C: "تدريب المعلّمين على البحث العلميّ",
-        D: "تدريب الطلبة على البحث العلميّ"
+        A: "تدريب الطلبة على فنيات الاختبارات الدولية من خلال الأنشطة داخل الصف",
+        B: "تدريب الطلبة على فنيات الاختبارات الدولية من خلال الأنشطة خارج الصف",
+        C: "تدريب المعلمين على البحث العلمي",
+        D: "تدريب الطلبة على البحث العلمي"
       } },
-    // Q6 — number line, smallest squared
+
+    // Q6 — أصغر مربع / خط الأعداد (image carries the number line; options from docx)
     { image: "/assets/math/q06.png",
       options: { A: "B", B: "C", C: "D", D: "A" } },
-    // Q7 — Saleh's 3 books equation form
+
+    // Q7 — معادلة مسألة كتب صالح (image has full question text)
     { image: "/assets/math/q07.png",
       options: { A: "3x − 11 = 50", B: "3x + 11 = 50", C: "3(x + 11) = 50", D: "3(x − 11) = 50" } },
-    // Q8 — f(x) = x²+3x+k, find f(1)
-    // (Source PDF has corrupted C option; using best educated reconstruction.)
+
+    // Q8 — دالة / إيجاد f(1) (image carries the function; options from docx)
     { image: "/assets/math/q08.png",
-      options: { A: "k − 4", B: "4", C: "−4", D: "0" } },
-    // Q9 — Number of triangles in 6th pattern
+      options: { A: "k − 4", B: "4", C: "k", D: "0" } },
+
+    // Q9 — عدد المثلثات في النمط السادس (image carries the pattern diagram)
     { image: "/assets/math/q09.png",
       options: { A: "7", B: "13", C: "10", D: "16" } },
-    // Q10 — a.b=105, integers, min of b−a
+
+    // Q10 — a·b = 105، أقل قيمة لـ b−a (image has full question text)
     { image: "/assets/math/q10.png",
       options: { A: "6", B: "8", C: "16", D: "21" } },
-    // Q11 — Shadow/wall geometry
-    { image: "/assets/math/q11.png",
+
+    // Q11 — هندسة الظل والجدار (text fully present in docx — pure text question)
+    { q: "طول ظل طفل على الجدار يساوي 3، وطول الطفل يساوي 1، فما هي المسافة بين الطفل والجدار إذا كانت المسافة بين الطفل والمصباح تساوي 2؟",
       options: { A: "2", B: "4", C: "6", D: "8" } },
-    // Q12 — Three tangent circles, triangle area
+
+    // Q12 — مساحة مثلث / دوائر متماسة (image carries the diagram; options from docx)
     { image: "/assets/math/q12.png",
       options: { A: "10", B: "12", C: "16", D: "6" } },
-    // Q13 — Square divided into 3 equal areas, length MC
+
+    // Q13 — طول MC في مربع مقسّم (image carries the diagram; options from docx)
     { image: "/assets/math/q13.png",
       options: { A: "3", B: "4", C: "√14", D: "√13" } },
-    // Q14 — Parallelogram concept
+
+    // Q14 — المفهوم الهندسي الذي يريد الأستاذ توضيحه (image carries the figure)
     { image: "/assets/math/q14.png",
       options: {
         A: "مساحة المستطيل",
         B: "مساحة متوازي الأضلاع",
-        C: "مساحة المربّع",
-        D: "مساحة مثلّث قائم الزّاوية"
+        C: "مساحة المربع",
+        D: "مساحة مثلث قائم الزاوية"
       } },
-    // Q15 — Square abcd side 28cm, area
+
+    // Q15 — مساحة مربع (image carries the figure; options from docx)
     { image: "/assets/math/q15.png",
       options: { A: "100", B: "121", C: "144", D: "400" } },
-    // Q16 — Family at restaurant
-    { image: "/assets/math/q16.png",
+
+    // Q16 — عائلة في مطعم / سعر وجبة البالغ (text fully present in docx — pure text question)
+    { q: "ذهبت عائلة مكوّنة من أب وأم و5 أطفال إلى مطعم، إذا كان سعر وجبة الطفل نصف سعر وجبة البالغ، كم قيمة وجبة البالغ إذا دفع الأب 405 دنانير؟",
       options: { A: "30", B: "45", C: "60", D: "90" } },
-    // Q17 — Rectangle perimeter 48m → square area
-    { image: "/assets/math/q17.png",
+
+    // Q17 — غرفة مستطيلة / محيط 48 متراً ← مربع (text fully present in docx — pure text question)
+    { q: "غرفة مستطيلة محيطها 48 متراً، لو زاد عرضها 2 متر ونقص طولها 2 متر لأصبحت مربعة. ما مساحتها الجديدة؟",
       options: { A: "121", B: "169", C: "144", D: "400" } },
-    // Q18 — Triangle two sides 6cm, 60° between, third side
-    // Source had "6 2" / "3 2" — restored as √2 forms.
-    { image: "/assets/math/q18.png",
+
+    // Q18 — مثلث ضلعان 6 cm وزاوية 60° (text fully present in docx — pure text question)
+    { q: "طول الضلع الأول في مثلث 6 cm، وطول الضلع الثاني 6 cm، وقياس الزاوية المحصورة بينهما 60°. فإن طول الضلع الثالث يساوي:",
       options: { A: "6", B: "3", C: "6√2", D: "3√2" } },
-    // Q19 — Double of 2⁸ equals
-    // Source had digits with lost superscripts (216/210/29/212) — restored as powers of 2.
-    { image: "/assets/math/q19.png",
+
+    // Q19 — ضعف العدد 2⁸ (text fully present in docx — pure text question)
+    { q: "ضعف العدد 2⁸ يساوي:",
       options: { A: "2¹⁶", B: "2¹⁰", C: "2⁹", D: "2¹²" } },
-    // Q20 — Circle inscribed in 900 cm² square, distance A,B
-    // Source had "152-15" / "302-30" — restored as 15√2−15 / 30√2−30.
-    { image: "/assets/math/q20.png",
+
+    // Q20 — دائرة داخل مربع مساحته 900 cm² / المسافة بين A و B (text fully present in docx)
+    { q: "في الشكل المجاور رُسمت دائرة داخل مربع مساحته 900 cm² حيث تمسّ الدائرة أضلاع المربع. فإن المسافة بين النقطتين A و B هي:",
       options: { A: "90", B: "15", C: "15√2 − 15", D: "30√2 − 30" } },
   ],
 
