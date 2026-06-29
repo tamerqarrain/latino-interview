@@ -120,6 +120,7 @@
 
   /* ══ INTERVIEW ROOM ══ */
   #roomScreen { flex-direction: column; }
+  #assessScreen { align-items: center; justify-content: flex-start; overflow-y: auto; }
 
   .room-top {
     position: fixed; top: 0; left: 0; right: 0; padding: 16px 32px;
@@ -475,6 +476,7 @@
   .assess-shell {
     max-width: 760px; width: 100%; padding: 28px 24px;
     display: flex; flex-direction: column; gap: 24px;
+    height: 100vh; box-sizing: border-box;
   }
   .assess-header {
     display: flex; align-items: center; justify-content: space-between;
@@ -507,7 +509,8 @@
 
   .assess-body {
     background: rgba(255,255,255,0.02); border: 1px solid var(--border);
-    border-radius: 16px; padding: 28px; min-height: 320px;
+    border-radius: 16px; padding: 28px; min-height: 0;
+    flex: 1; overflow-y: auto;
   }
   .assess-qtext {
     font-size: 17px; line-height: 1.9; color: var(--text);
@@ -1645,6 +1648,14 @@ async function doneAnswering() {
 
   // If nothing was captured, let the candidate retry instead of silently failing
   if (!transcript || transcript.trim().length < 2) {
+    // Salary question: empty = skip — resolve immediately so the flow doesn't loop
+    if (S.onSalaryAnswered) {
+      const cb = S.onSalaryAnswered;
+      S.onSalaryAnswered = null;
+      S.expectedSalary = '';
+      cb('');
+      return;
+    }
     // If we were typing OR voice input is globally disabled → re-prompt typing (NEVER start mic)
     if (S.typingMode || !USE_VOICE_INPUT) {
       setStatus('purple', 'لم تكتب إجابة', 'الرجاء كتابة إجابتك ثم الضغط على "انتهيت".');
@@ -1710,6 +1721,15 @@ async function skipQuestion() {
     S.mediaRecorder.stream.getTracks().forEach(t => t.stop());
     try { S.mediaRecorder.stop(); } catch {}
   }
+  // If we're in the salary step, resolve it as skipped so the flow continues
+  if (S.onSalaryAnswered) {
+    const cb = S.onSalaryAnswered;
+    S.onSalaryAnswered = null;
+    S.expectedSalary = '';
+    cb('');
+    return;
+  }
+
   S.answers[S.currentQ] = '[تم تخطي السؤال]';
 
   if (S.currentQ >= S.questions.length - 1) { await doOutro(); return; }
@@ -2026,6 +2046,7 @@ function renderLetterOptions(optsEl, letters, currentAnswer) {
     const btn = document.createElement('div');
     btn.className = 'assess-option' + (currentAnswer === letter ? ' selected' : '');
     btn.setAttribute('data-sfx', 'select');
+    btn.setAttribute('data-letter', letter);
     btn.style.flex = '1 1 auto';
     btn.style.minWidth = '110px';
     btn.style.maxWidth = '160px';
@@ -2050,9 +2071,11 @@ function renderTextOptions(optsEl, letters, options, currentAnswer) {
     const div  = document.createElement('div');
     div.className = 'assess-option' + (currentAnswer === letter ? ' selected' : '');
     div.setAttribute('data-sfx', 'select');
+    div.setAttribute('data-letter', letter);
     div.onclick = () => selectAssessmentAnswer(letter);
+    const isSelected = currentAnswer === letter;
     div.innerHTML = `
-      <span class="assess-option-letter">${letter}</span>
+      <span class="assess-option-letter" style="${isSelected ? 'background:var(--gold);border-color:var(--gold);color:#0d1520;' : ''}">${letter}</span>
       <span class="assess-option-text">${escapeHtml(text)}</span>
     `;
     optsEl.appendChild(div);
@@ -2080,6 +2103,7 @@ function renderTrueFalseOptions(optsEl, currentAnswer) {
     btn.style.fontWeight = '700';
     btn.style.padding = '20px';
     if (currentAnswer === val) btn.style.borderColor = color;
+    btn.setAttribute('data-letter', val);
     btn.onclick = () => selectAssessmentAnswer(val);
     btn.innerHTML = `<span style="color:${currentAnswer === val ? color : 'inherit'};">${label}</span>`;
     optsEl.appendChild(btn);
@@ -2141,8 +2165,25 @@ function escapeHtml(s) {
 
 function selectAssessmentAnswer(letter) {
   S.assessmentAnswers[S.assessmentIdx] = letter;
-  // Re-render to show selection highlight + updated summary
-  renderAssessmentQuestion();
+  // Update highlight WITHOUT re-rendering (which would restart the timer).
+  // Just toggle the .selected class on the existing option elements.
+  const optsEl = document.getElementById('assessOptions');
+  optsEl.querySelectorAll('.assess-option').forEach(el => {
+    const isThis = el.getAttribute('data-letter') === letter;
+    el.classList.toggle('selected', isThis);
+    // Also update the letter badge colour inside the option
+    const badge = el.querySelector('.assess-option-letter');
+    if (badge) {
+      badge.style.background   = isThis ? 'var(--gold)' : '';
+      badge.style.borderColor  = isThis ? 'var(--gold)' : '';
+      badge.style.color        = isThis ? '#0d1520'     : '';
+    }
+  });
+  // Update the answered-count summary
+  const N = S.assessmentQuestions.length;
+  const answered = S.assessmentAnswers.filter(a => a && String(a).trim()).length;
+  document.getElementById('assessSummary').textContent =
+    toAr(answered) + ' من ' + toAr(N) + ' تمت الإجابة';
 }
 
 function assessPrev() {
