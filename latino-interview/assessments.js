@@ -210,8 +210,7 @@ const ASSESSMENTS = {
     { type: "truefalse", marks: 2, q: "تناولُ المشروبات السّاخنة يمنح الدّفء للجسم. كلمة (تناولُ) فعل مضارع." },
     { type: "truefalse", marks: 2, q: "همزة (الْتِفات) همزة وصل لأنّها تبدأ ب (ال التّعريف)." },
     { type: "truefalse", marks: 2, q: "الكلمات التّالية كلّها جمع مذكّر سالم (معلّمونَ، مراقبينَ، عالِمونَ، بساتينَ، مساعدينَ)." },
-    { q: "استعانتِ المعلّمة بوسيلةٍ لإيضاح الدّرس. التّاء في (استعانت) هي تاء التّأنيث.", type: "mcq4", marks: 2,
-      options: { A: "KD", B: "KC", C: "KB", D: "KA" } },
+    { type: "truefalse", marks: 2, q: "استعانتِ المعلّمة بوسيلةٍ لإيضاح الدّرس. التّاء في (استعانت) هي تاء التّأنيث." },
     { type: "truefalse", marks: 2, q: "مساعدو الإدارة نظّموا العمل. كتابة كلمة (مساعدو) خاطئة دون ألف." },
     { type: "truefalse", marks: 2, q: "عندما يقع الطّالب بخطأ أثناء القراءة، على المعلّم تصويب هذا الخطأ بنفسه." },
     { type: "truefalse", marks: 2, q: "الكلمات التّالية كلّها أفعال (يساعدُ، صاعد، انتبهْ، يتفاعلُ)." },
@@ -405,11 +404,11 @@ const ASSESSMENTS = {
       },
     },
 
-    // ─── Q6: vowelization — اضبط حركة الحرف + 5 vocative items (6 marks total) ───
+    // ─── Q6: 5 vocative vowelization items (1 mark each = 5 marks) ───
     {
-      sectionStart: "السؤال السّادس — اضبط حركة الحرف الّذي تحته خطٌّ في الكلمات الآتية (٦ علامات)",
+      sectionStart: "السؤال السّادس — اضبط المنادى وفق ما هو مبيّن (٥ علامات)",
       type: "vowelization", marks: 1,
-      q: "اضبط حركة الحرف الّذي تحته خطّ في الكلمات المخطوط تحتها في الجمل الآتية:\nيا سعيد — (اسم علم).\nاضبط (سعيد).",
+      q: "يا سعيد — (اسم علم).\nاضبط (سعيد).",
       rubric: "الإجابة الصحيحة: يا سعيدُ (المنادى علم مبني على الضم). علامة كاملة = 1.",
     },
     {
@@ -433,17 +432,22 @@ const ASSESSMENTS = {
       rubric: "الإجابة الصحيحة: يا طيّبًا قلبُه (الشبيه بالمضاف منصوب بالفتحة المنوّنة). علامة كاملة = 1.",
     },
 
-    // ─── Q7: 2 numbers-to-words cheque conversions (1.5 marks each = 3 marks) ───
+    // ─── Q7: 3 numbers-to-words conversions (1 mark each = 3 marks) ───
     {
-      sectionStart: "السّؤال السّابع — حوّل الأرقام في الشّيكات التّالية إلى كلمات مراعيًا أحكام العدد وحركة المعدود من كلّ وجهٍ (ثلاث علامات)",
+      sectionStart: "السؤال السّابع — حوّل الأرقام إلى كلمات مراعيًا أحكام العدد (٣ علامات)",
       type: "numbers_to_words", marks: 1,
-      q: "ادفعوا لأمر السّيّد ________________________ 75 ( درهمًا ) فقط.\nاكتب العدد 75 بالكلمات مع (درهمًا) معدودًا، مراعيًا أحكام العدد.",
-      rubric: "الإجابة الصحيحة: خمسةٌ وسبعونَ درهمًا (العدد المركب من عقود: الجزء الأول يخالف المعدود فـ(خمسة) لأن درهم مذكّر، والعقد (سبعون) لا يتأثر. المعدود منصوب منوّن لأنه تمييز). علامة كاملة = 1.",
+      q: "اكتب الرقم 15 كلمةً، مع كلمة (كتابًا) معدودًا (أي: ١٥ كتابًا).",
+      rubric: "الإجابة الصحيحة: خمسة عشر كتابًا (العدد المركب يخالف المعدود في الجزء الأول ويوافقه في الجزء الثاني — لذا (خمسة) لأنّ المعدود مذكّر). علامة كاملة = 1.",
     },
     {
-      type: "numbers_to_words", marks: 2,
-      q: "ادفعوا لأمر السّيّد ________________________ 315 ( درهمًا ) فقط.\nاكتب العدد 315 بالكلمات مع (درهمًا) معدودًا، مراعيًا أحكام العدد.",
-      rubric: "الإجابة الصحيحة: خمسةَ عشرَ وثلاثمئةِ درهمًا (أو: ثلاثمئةٍ وخمسةَ عشرَ درهمًا). المئات (ثلاثمئة) لا تتأثر بالجنس. العشرة: (خمسةَ عشرَ) لأن درهم مذكّر فيخالف في الجزء الأول. المعدود تمييز منصوب منوّن. علامة كاملة = 2.",
+      type: "numbers_to_words", marks: 1,
+      q: "اكتب الرقم 22 كلمةً، مع كلمة (طالبةً) معدودًا (أي: ٢٢ طالبةً).",
+      rubric: "الإجابة الصحيحة: اثنتان وعشرون طالبةً (لأنّ المعدود مؤنث، والعدد (اثنتان) يطابق المعدود). علامة كاملة = 1.",
+    },
+    {
+      type: "numbers_to_words", marks: 1,
+      q: "اكتب الرقم 100 كلمةً، مع كلمة (دينارٍ) معدودًا (أي: ١٠٠ دينار).",
+      rubric: "الإجابة الصحيحة: مئة دينارٍ (مئة لفظ ثابت لا يتأثر بالمعدود، والمعدود مفرد مجرور بالإضافة). علامة كاملة = 1.",
     },
   ],
 
@@ -451,32 +455,88 @@ const ASSESSMENTS = {
   "عربي": [],
 
   "رياضيات": [
-    // Source: Math-FINAL001.docx — 20 questions
-    // All questions rendered as imageOnly — each image contains the full question
-    // header, body, diagram (where applicable), and all answer options.
-    // EMF-broken images (Q4, Q13, Q18, Q19, Q20) are sourced from the clean PDF render.
-    // imageOnly:true → client shows letter buttons A/B/C/D below the image.
-
-    { image: "/assets/math/q01.png", imageOnly: true },  // Q1  — تعريف الاستبانة
-    { image: "/assets/math/q02.png", imageOnly: true },  // Q2  — إدارة الصف
-    { image: "/assets/math/q03.png", imageOnly: true },  // Q3  — ناتج 10+6÷2×3
-    { image: "/assets/math/q04.png", imageOnly: true },  // Q4  — قيمة (2¹⁰×5¹⁵)/10¹⁰
-    { image: "/assets/math/q05.png", imageOnly: true },  // Q5  — TIMSS
-    { image: "/assets/math/q06.png", imageOnly: true },  // Q6  — خط الأعداد
-    { image: "/assets/math/q07.png", imageOnly: true },  // Q7  — معادلة كتب صالح
-    { image: "/assets/math/q08.png", imageOnly: true },  // Q8  — f(x)=x²+3x+k
-    { image: "/assets/math/q09.png", imageOnly: true },  // Q9  — عدد المثلثات النمط السادس
-    { image: "/assets/math/q10.png", imageOnly: true },  // Q10 — a·b=105، أقل b−a
-    { image: "/assets/math/q11.png", imageOnly: true },  // Q11 — هندسة الظل
-    { image: "/assets/math/q12.png", imageOnly: true },  // Q12 — ثلاث دوائر متماسة
-    { image: "/assets/math/q13.png", imageOnly: true },  // Q13 — مربع NC و MC (√14/√13)
-    { image: "/assets/math/q14.png", imageOnly: true },  // Q14 — متوازي الأضلاع
-    { image: "/assets/math/q15.png", imageOnly: true },  // Q15 — مربع abcd 28cm مظلل
-    { image: "/assets/math/q16.png", imageOnly: true },  // Q16 — عائلة في مطعم
-    { image: "/assets/math/q17.png", imageOnly: true },  // Q17 — غرفة مستطيلة 48م
-    { image: "/assets/math/q18.png", imageOnly: true },  // Q18 — مثلث 6cm زاوية 60° (6√2/3√2)
-    { image: "/assets/math/q19.png", imageOnly: true },  // Q19 — ضعف 2⁸ (2¹⁶/2¹⁰/2⁹/2¹²)
-    { image: "/assets/math/q20.png", imageOnly: true },  // Q20 — دائرة في مربع 900cm² (15√2-15)
+    // Math questions: HYBRID format — image shows the diagram/question text,
+    // options rendered as CLEAN TEXT below the image (avoids source PDF defects:
+    // mangled superscripts, missing values, jumbled layouts).
+    // Q1 — Definition of questionnaires
+    { image: "/assets/math/q01.png",
+      options: { A: "المقابلات", B: "الملاحظات", C: "الاختبارات", D: "الاستبانات" } },
+    // Q2 — Classroom management
+    { image: "/assets/math/q02.png",
+      options: {
+        A: "إعادة توزيع الطلبة غير المندمجين في المجموعات واستكمال المهمات مع زملائهم في المجموعات الجديدة.",
+        B: "التوجه نحو المجموعات التي تضم الطلبة غير المندمجين ومناقشتهم في المهمات المسندة لأعضاء الفريق.",
+        C: "الطلب من الطلبة الثلاثة غير المندمجين استكمال المهمة بشكل مستقل ومناقشتها مع المعلم بشكل فردي.",
+        D: "تجاهل الموضوع مؤقتاً لعدم إحراج الطلبة، ثم التحدث معهم على انفراد بعد انتهاء الحصة خارج الصف."
+      } },
+    // Q3 — 10 + 6 ÷ 2 × 3
+    { image: "/assets/math/q03.png",
+      options: { A: "19", B: "24", C: "-19", D: "11" } },
+    // Q4 — (2¹⁰ × 5¹⁵) / 10¹⁰  →  5⁵
+    { image: "/assets/math/q04.png",
+      options: { A: "5¹⁰", B: "2¹⁰", C: "5⁵", D: "2⁵" } },
+    // Q5 — TIMSS best practice
+    { image: "/assets/math/q05.png",
+      options: {
+        A: "تدريب الطلبة على فنيّات الاختبارات الدوليّة من خلال الأنشطة داخل الصفّ",
+        B: "تدريب الطلبة على فنيّات الاختبارات الدوليّة من خلال الأنشطة خارج الصفّ",
+        C: "تدريب المعلّمين على البحث العلميّ",
+        D: "تدريب الطلبة على البحث العلميّ"
+      } },
+    // Q6 — number line, smallest squared
+    { image: "/assets/math/q06.png",
+      options: { A: "B", B: "C", C: "D", D: "A" } },
+    // Q7 — Saleh's 3 books equation form
+    { image: "/assets/math/q07.png",
+      options: { A: "3x − 11 = 50", B: "3x + 11 = 50", C: "3(x + 11) = 50", D: "3(x − 11) = 50" } },
+    // Q8 — f(x) = x²+3x+k, find f(1)
+    // (Source PDF has corrupted C option; using best educated reconstruction.)
+    { image: "/assets/math/q08.png",
+      options: { A: "k − 4", B: "4", C: "−4", D: "0" } },
+    // Q9 — Number of triangles in 6th pattern
+    { image: "/assets/math/q09.png",
+      options: { A: "7", B: "13", C: "10", D: "16" } },
+    // Q10 — a.b=105, integers, min of b−a
+    { image: "/assets/math/q10.png",
+      options: { A: "6", B: "8", C: "16", D: "21" } },
+    // Q11 — Shadow/wall geometry
+    { image: "/assets/math/q11.png",
+      options: { A: "2", B: "4", C: "6", D: "8" } },
+    // Q12 — Three tangent circles, triangle area
+    { image: "/assets/math/q12.png",
+      options: { A: "10", B: "12", C: "16", D: "6" } },
+    // Q13 — Square divided into 3 equal areas, length MC
+    { image: "/assets/math/q13.png",
+      options: { A: "3", B: "4", C: "√14", D: "√13" } },
+    // Q14 — Parallelogram concept
+    { image: "/assets/math/q14.png",
+      options: {
+        A: "مساحة المستطيل",
+        B: "مساحة متوازي الأضلاع",
+        C: "مساحة المربّع",
+        D: "مساحة مثلّث قائم الزّاوية"
+      } },
+    // Q15 — Square abcd side 28cm, area
+    { image: "/assets/math/q15.png",
+      options: { A: "100", B: "121", C: "144", D: "400" } },
+    // Q16 — Family at restaurant
+    { image: "/assets/math/q16.png",
+      options: { A: "30", B: "45", C: "60", D: "90" } },
+    // Q17 — Rectangle perimeter 48m → square area
+    { image: "/assets/math/q17.png",
+      options: { A: "121", B: "169", C: "144", D: "400" } },
+    // Q18 — Triangle two sides 6cm, 60° between, third side
+    // Source had "6 2" / "3 2" — restored as √2 forms.
+    { image: "/assets/math/q18.png",
+      options: { A: "6", B: "3", C: "6√2", D: "3√2" } },
+    // Q19 — Double of 2⁸ equals
+    // Source had digits with lost superscripts (216/210/29/212) — restored as powers of 2.
+    { image: "/assets/math/q19.png",
+      options: { A: "2¹⁶", B: "2¹⁰", C: "2⁹", D: "2¹²" } },
+    // Q20 — Circle inscribed in 900 cm² square, distance A,B
+    // Source had "152-15" / "302-30" — restored as 15√2−15 / 30√2−30.
+    { image: "/assets/math/q20.png",
+      options: { A: "90", B: "15", C: "15√2 − 15", D: "30√2 − 30" } },
   ],
 
   "English": [
@@ -503,9 +563,9 @@ const ASSESSMENTS = {
     { q: "Which of the following is an example of alliteration?",
       options: { A: "\"She sells seashells by the seashore.\"", B: "\"The cat in the hat sat on the mat.\"", C: "\"Peter Piper picked a peck of pickled peppers.\"", D: "\"How much wood would a woodchuck chuck if a woodchuck could chuck wood?\"" } },
     { q: "Teacher: \"Who has a vehicle that can carry twenty people at once? Hint, many of you rode in one today!\" Students: \"A bus driver.\" The previous scenario is an example of a teaching strategy used in listening and speaking classes. It is known as ______.",
-      options: { A: "selecting", B: "inferring", C: "elaborating", D: "anticipating" }, correct: "B" },
+      options: { A: "selecting", B: "inferring", C: "elaborating", D: "anticipating" } },
     { q: "A student wrote, \"I was looking to my lost wallet and the plane took away.\" This student needs help with ______.",
-      options: { A: "adverbs", B: "prepositions", C: "phrasal verbs", D: "transactional verbs" }, correct: "C" },
+      options: { A: "adverbs", B: "prepositions", C: "phrasal verbs", D: "transactional verbs" } },
     { q: "The team's ___ efforts resulted in a groundbreaking scientific discovery.",
       options: { A: "collaborative", B: "ambivalent", C: "facetious", D: "eclectic" } },
     { q: "Which sentence is correct?",
@@ -517,7 +577,7 @@ const ASSESSMENTS = {
     { q: "She gave a ______ shrug when asked if she wanted to go to the party, clearly showing she didn't really care about the plan.",
       options: { A: "breeze through", B: "valiant", C: "run on empty", D: "half-hearted" } },
     { q: "\"I should have been practising every day, but I hadn't taken the trumpet out of the box for weeks.\" The underlined verb in the sentence is used to indicate ______.",
-      options: { A: "strong obligation", B: "deduction", C: "no obligation", D: "mild obligation" }, correct: "D" },
+      options: { A: "strong obligation", B: "deduction", C: "no obligation", D: "mild obligation" } },
     { q: "\"You shouldn't have told him the answers.\" The sentence that has the same meaning as the above is:",
       options: { A: "You were meant to tell him the answers.", B: "You aren't meant to tell him the answers.", C: "You weren't bound to tell him the answers.", D: "You weren't meant to tell him the answers." } },
     { q: "\"Because they know critical thinking is important, teachers try to include it in lessons.\" The sentence with the correct participle clause version is:",
@@ -563,7 +623,7 @@ const ASSESSMENTS = {
     { q: "\"There's no need to worry. You'll be great!\" The underlined expression can be replaced by ______.",
       options: { A: "I'm so sorry to hear that", B: "What's the worst that could happen?", C: "I am worried sick", D: "I am walking on air" } },
     { q: "In natural speech, what happens in the phrase \"next day\"?",
-      options: { A: "Elision", B: "Intrusion", C: "Assimilation", D: "Linking" }, correct: "C" },
+      options: { A: "Elision", B: "Intrusion", C: "Assimilation", D: "Linking" } },
     { q: "What is the correct phonetic transcription for the word \"schedule\" (British English)?",
       options: { A: "/skɛduːl/", B: "/ʃɛdjuːl/", C: "/ʃɛdʒuːl/", D: "/skɛdʒuːl/" } },
     { q: "Complete: \"I'll have to ___\"",
