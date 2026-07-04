@@ -46,8 +46,16 @@
     position: fixed; inset: 0;
     display: flex; align-items: center; justify-content: center;
     z-index: 10; transition: opacity .4s;
+    overflow-y: auto;             /* allow scroll when content exceeds viewport */
+    padding: 24px 0;              /* breathing room at top/bottom when scrolling */
+    -webkit-overflow-scrolling: touch;
   }
   .screen.hidden { opacity: 0; pointer-events: none; }
+  /* When the card is taller than the viewport, flex-center collapses the top:
+     switch to top-align so the whole card is reachable. */
+  @media (max-height: 820px) {
+    #setupScreen { align-items: flex-start; }
+  }
 
   /* ══ SETUP ══ */
   .setup-card {
@@ -120,7 +128,6 @@
 
   /* ══ INTERVIEW ROOM ══ */
   #roomScreen { flex-direction: column; }
-  #assessScreen { align-items: center; justify-content: flex-start; overflow-y: auto; }
 
   .room-top {
     position: fixed; top: 0; left: 0; right: 0; padding: 16px 32px;
@@ -476,7 +483,6 @@
   .assess-shell {
     max-width: 760px; width: 100%; padding: 28px 24px;
     display: flex; flex-direction: column; gap: 24px;
-    height: 100vh; box-sizing: border-box;
   }
   .assess-header {
     display: flex; align-items: center; justify-content: space-between;
@@ -509,8 +515,7 @@
 
   .assess-body {
     background: rgba(255,255,255,0.02); border: 1px solid var(--border);
-    border-radius: 16px; padding: 28px; min-height: 0;
-    flex: 1; overflow-y: auto;
+    border-radius: 16px; padding: 28px; min-height: 320px;
   }
   .assess-qtext {
     font-size: 17px; line-height: 1.9; color: var(--text);
@@ -627,7 +632,7 @@
   ════════════════════════════════════════ */
   @media (max-width: 600px) {
     /* Setup */
-    .setup-card { width: 100%; max-width: 100%; margin: 0 14px; padding: 36px 26px; border-radius: 18px; }
+    .setup-card { width: 100%; max-width: 100%; margin: 20px 14px; padding: 32px 22px; border-radius: 18px; }
     .brand h1 { font-size: 26px; }
     .brand-orb { width: 68px; height: 68px; }
 
@@ -688,7 +693,7 @@
 <div class="screen" id="setupScreen">
   <div class="setup-card fade-in">
     <div class="brand">
-      <div class="brand-orb"><img src="/assets/latino-logo.png" alt="لاتينو" onerror="this.outerHTML='<span>L</span>';" style="width:100%;height:100%;object-fit:contain;border-radius:50%;background:#fff;"></div>
+      <div class="brand-orb"><img src="/assets/latino-logo.png" alt="لاتينو" onerror="this.outerHTML='<span>L</span>';" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>
       <h1>لاتينو</h1>
       <p>المقابلة المبدئية لفرز المرشحين · شبكة المدارس ورياض الأطفال</p>
     </div>
@@ -752,7 +757,7 @@
     <div class="ring ring-1"></div>
     <div class="ring ring-2"></div>
     <div class="ring ring-3"></div>
-    <div class="orb-core" id="orbCore"><div class="orb-L"><img src="/assets/latino-logo.png" alt="لاتينو" onerror="this.outerHTML='L';" style="width:100%;height:100%;object-fit:contain;border-radius:50%;background:#fff;display:block;"></div></div>
+    <div class="orb-core" id="orbCore"><div class="orb-L"><img src="/assets/latino-logo.png" alt="لاتينو" onerror="this.outerHTML='L';" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;"></div></div>
 
     <!-- Soundwave: visible while ElevenLabs is speaking -->
     <div class="soundwave" id="soundwave">
@@ -859,7 +864,7 @@
         <span id="assessCounter">السؤال ١ من ٢٥</span>
         <div class="assess-bar"><div class="assess-bar-fill" id="assessBarFill" style="width:4%;"></div></div>
       </div>
-      <div class="assess-timer" id="assessTimer" title="الوقت المتبقي للتقييم">١:٠٠</div>
+      <div class="assess-timer" id="assessTimer" title="الوقت المتبقي لهذا السؤال">١:٠٠</div>
     </div>
 
     <div class="assess-body">
@@ -910,9 +915,37 @@ const READ_SECONDS = 10;   // thinking/reading time after question is spoken
 const MAX_REC_SECONDS = 180; // hard cap on answer recording (3 minutes) — voice mode only
 const TYPE_SECONDS = 5 * 60;     // 5 minutes typing per Q1-Q8 question (and salary)
 
-// All assessments share a single 40-minute total timer — no per-question limit.
-const ASSESS_TOTAL_SECONDS = 40 * 60;   // 40 minutes for every subject
-function getAssessDuration(subject) { return ASSESS_TOTAL_SECONDS; }
+// Per-question timer durations in the ASSESSMENT (depends on question type).
+// Multiple choice / true-false → short.   Essay/typing questions → 5 min.
+const ASSESS_TIMER_BY_TYPE = {
+  truefalse:        45,         // T/F is fastest
+  mcq3:             60,         // 1 min for 3-option MCQ
+  mcq4:             60,         // 1 min for 4-option MCQ
+  image:            90,         // Image MCQ needs extra time to study the diagram
+  openended:        5 * 60,     // Essay typing → 5 minutes
+  vowelization:     5 * 60,     // اشكل (diacritics) → 5 minutes
+  numbers_to_words: 5 * 60,     // Number → words → 5 minutes
+};
+function getQuestionTimerDuration(q) {
+  if (!q) return 60;
+  if (q.image) return ASSESS_TIMER_BY_TYPE.image;
+  const type = q.type || 'mcq4';
+  return ASSESS_TIMER_BY_TYPE[type] || 60;
+}
+const ASSESS_Q_SECONDS = 5 * 60; // legacy default — used only as a fallback
+// Per-subject total time limits (seconds). Kept as a hard upper-bound cap;
+// the visible timer is now per-question (5 min each).
+const ASSESS_DURATIONS = {
+  'علوم':    30 * 60,   // 25 questions
+  'رياضيات': 40 * 60,   // 20 image-based questions
+  'English': 40 * 60,   // 42 questions
+  'عربي - المرحلة الدنيا': 60 * 60,
+  'عربي - المرحلة العليا': 60 * 60,
+  'عربي': 60 * 60,
+};
+function getAssessDuration(subject) {
+  return ASSESS_DURATIONS[subject] || (30 * 60);
+}
 
 // Arabic has two variants picked by the candidate's role.
 function effectiveAssessmentKey(subject, role) {
@@ -937,7 +970,8 @@ const S = {
   name: '', email: '', phone: '', exp: '', role: '', location: '', expectedSalary: '',
   subject: '', effectiveSubject: '',                              // selected subject (Teachers only); effectiveSubject is the resolved variant for Arabic
   assessmentQuestions: [], assessmentAnswers: [], assessmentIdx: 0,
-  assessmentTimer: null, assessmentLeft: ASSESS_TOTAL_SECONDS,
+  assessmentTimer: null, assessmentLeft: getAssessDuration(''),
+  assessmentQTimer: null, assessmentQLeft: 5 * 60,
   questions: [], answers: [],
   currentQ: 0, phase: 'idle',
   mediaRecorder: null, audioChunks: [],
@@ -1619,14 +1653,6 @@ async function doneAnswering() {
 
   // If nothing was captured, let the candidate retry instead of silently failing
   if (!transcript || transcript.trim().length < 2) {
-    // Salary question: empty = skip — resolve immediately so the flow doesn't loop
-    if (S.onSalaryAnswered) {
-      const cb = S.onSalaryAnswered;
-      S.onSalaryAnswered = null;
-      S.expectedSalary = '';
-      cb('');
-      return;
-    }
     // If we were typing OR voice input is globally disabled → re-prompt typing (NEVER start mic)
     if (S.typingMode || !USE_VOICE_INPUT) {
       setStatus('purple', 'لم تكتب إجابة', 'الرجاء كتابة إجابتك ثم الضغط على "انتهيت".');
@@ -1692,15 +1718,6 @@ async function skipQuestion() {
     S.mediaRecorder.stream.getTracks().forEach(t => t.stop());
     try { S.mediaRecorder.stop(); } catch {}
   }
-  // If we're in the salary step, resolve it as skipped so the flow continues
-  if (S.onSalaryAnswered) {
-    const cb = S.onSalaryAnswered;
-    S.onSalaryAnswered = null;
-    S.expectedSalary = '';
-    cb('');
-    return;
-  }
-
   S.answers[S.currentQ] = '[تم تخطي السؤال]';
 
   if (S.currentQ >= S.questions.length - 1) { await doOutro(); return; }
@@ -1865,14 +1882,12 @@ function startAssessment() {
 }
 
 function startAssessmentTimer() {
-  // Single global 40-minute countdown covering all questions.
-  // The assessTimer element in the header shows time remaining for the whole assessment.
+  // Per-question timer is now driven by renderAssessmentQuestion().
+  // We still keep a global hard-cap (sum of all per-question times) that aborts
+  // the assessment if it ever runs long for some reason.
   if (S.assessmentTimer) clearInterval(S.assessmentTimer);
-  S.assessmentLeft = ASSESS_TOTAL_SECONDS;
-  updateAssessmentTimerDisplay();
   S.assessmentTimer = setInterval(() => {
     S.assessmentLeft--;
-    updateAssessmentTimerDisplay();
     if (S.assessmentLeft <= 0) {
       clearInterval(S.assessmentTimer);
       S.assessmentTimer = null;
@@ -1881,20 +1896,43 @@ function startAssessmentTimer() {
   }, 1000);
 }
 
-// Per-question timer removed — assessment uses a single 40-min global countdown.
-// This stub keeps call sites (renderAssessmentQuestion) from breaking.
-function startAssessmentQuestionTimer() { /* no-op: global timer drives everything */ }
+// Per-question timer: starts fresh each time a question is rendered.
+// Duration depends on the question type (T/F 45s, MCQ 60s, image 90s, essay 5min).
+// When it hits 0 → advance (or finalize if this is the last question).
+function startAssessmentQuestionTimer() {
+  if (S.assessmentQTimer) clearInterval(S.assessmentQTimer);
+  const q = S.assessmentQuestions[S.assessmentIdx];
+  S.assessmentQLeft = getQuestionTimerDuration(q);
+  updateAssessmentTimerDisplay();
+  S.assessmentQTimer = setInterval(() => {
+    S.assessmentQLeft--;
+    updateAssessmentTimerDisplay();
+    if (S.assessmentQLeft <= 0) {
+      clearInterval(S.assessmentQTimer);
+      S.assessmentQTimer = null;
+      const isLast = (S.assessmentIdx === S.assessmentQuestions.length - 1);
+      if (isLast) {
+        finalizeAssessment(true);
+      } else {
+        S.assessmentIdx++;
+        renderAssessmentQuestion();
+      }
+    }
+  }, 1000);
+}
 
 function updateAssessmentTimerDisplay() {
   const t = document.getElementById('assessTimer');
   if (!t) return;
-  const left = S.assessmentLeft || 0;
+  const left = (S.assessmentQLeft !== undefined ? S.assessmentQLeft : 60);
   const m = Math.floor(left / 60);
   const s = left % 60;
   t.textContent = `${toAr(m)}:${toAr(s).padStart(2,'٠')}`;
-  // warn → orange at ≤ 5 min remaining; danger → red at ≤ 2 min
-  t.classList.toggle('warn',   left <= 300 && left > 120);
-  t.classList.toggle('danger', left <= 120);
+  // Thresholds work cleanly for both short (45s) and long (5min) timers:
+  //   warn  → orange at ≤ 30 sec
+  //   danger→ red+pulse at ≤ 10 sec
+  t.classList.toggle('warn',   left <= 30 && left > 10);
+  t.classList.toggle('danger', left <= 10);
 }
 
 function renderAssessmentQuestion() {
@@ -1910,18 +1948,13 @@ function renderAssessmentQuestion() {
   const type = q.type || 'mcq4';
   const currentAnswer = S.assessmentAnswers[i] || '';
 
-  // Detect English subject → flip direction to LTR for the whole question body
-  const isEnglish = (S.effectiveSubject === 'English');
-  const qDir  = isEnglish ? 'ltr' : 'rtl';
-  const qAlign = isEnglish ? 'left' : 'right';
-
   // Build the question body — sectionStart header + passage + question text
   let bodyHTML = '';
   if (q.sectionStart) {
-    bodyHTML += `<div style="background:linear-gradient(135deg,rgba(201,168,76,0.12),rgba(201,168,76,0.03));border:1px solid rgba(201,168,76,0.35);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-weight:bold;color:#c9a84c;font-size:14px;direction:${qDir};text-align:${qAlign};">${escapeHtml(q.sectionStart)}</div>`;
+    bodyHTML += `<div style="background:linear-gradient(135deg,rgba(201,168,76,0.12),rgba(201,168,76,0.03));border:1px solid rgba(201,168,76,0.35);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-weight:bold;color:#c9a84c;font-size:14px;">${escapeHtml(q.sectionStart)}</div>`;
   }
   if (q.passage) {
-    bodyHTML += `<details style="margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;" open><summary style="cursor:pointer;font-weight:600;color:#c9a84c;font-size:13px;margin-bottom:6px;">📖 النصّ المرجعيّ — اضغط للإخفاء/الإظهار</summary><div style="margin-top:10px;line-height:1.9;color:var(--text);font-size:14px;white-space:pre-wrap;direction:${qDir};text-align:${qAlign};">${escapeHtml(q.passage)}</div></details>`;
+    bodyHTML += `<details style="margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;" open><summary style="cursor:pointer;font-weight:600;color:#c9a84c;font-size:13px;margin-bottom:6px;">📖 النصّ المرجعيّ — اضغط للإخفاء/الإظهار</summary><div style="margin-top:10px;line-height:1.9;color:var(--text);font-size:14px;white-space:pre-wrap;">${escapeHtml(q.passage)}</div></details>`;
   }
 
   // Render based on question type
@@ -1949,15 +1982,15 @@ function renderAssessmentQuestion() {
     }
   }
   else if (type === 'mcq4') {
-    qTextEl.innerHTML = bodyHTML + `<div style="font-size:17px;line-height:1.9;color:var(--text);direction:${qDir};text-align:${qAlign};">${escapeHtml(q.q)}</div>`;
-    renderTextOptions(optsEl, ['A','B','C','D'], q.options, currentAnswer, isEnglish);
+    qTextEl.innerHTML = bodyHTML + `<div style="font-size:17px;line-height:1.9;color:var(--text);">${escapeHtml(q.q)}</div>`;
+    renderTextOptions(optsEl, ['A','B','C','D'], q.options, currentAnswer);
   }
   else if (type === 'mcq3') {
-    qTextEl.innerHTML = bodyHTML + `<div style="font-size:17px;line-height:1.9;color:var(--text);direction:${qDir};text-align:${qAlign};">${escapeHtml(q.q)}</div>`;
-    renderTextOptions(optsEl, ['A','B','C'], q.options, currentAnswer, isEnglish);
+    qTextEl.innerHTML = bodyHTML + `<div style="font-size:17px;line-height:1.9;color:var(--text);">${escapeHtml(q.q)}</div>`;
+    renderTextOptions(optsEl, ['A','B','C'], q.options, currentAnswer);
   }
   else if (type === 'truefalse') {
-    qTextEl.innerHTML = bodyHTML + `<div style="font-size:17px;line-height:1.9;color:var(--text);direction:${qDir};text-align:${qAlign};">${escapeHtml(q.q)}</div>
+    qTextEl.innerHTML = bodyHTML + `<div style="font-size:17px;line-height:1.9;color:var(--text);">${escapeHtml(q.q)}</div>
       <div style="font-size:13px;color:var(--text-dim);margin-top:8px;">حدّد ما إذا كانت العبارة صحيحة أو خاطئة:</div>`;
     renderTrueFalseOptions(optsEl, currentAnswer);
   }
@@ -1973,8 +2006,8 @@ function renderAssessmentQuestion() {
   }
   else {
     // Fallback to mcq4
-    qTextEl.innerHTML = bodyHTML + `<div style="font-size:17px;line-height:1.9;color:var(--text);direction:${qDir};text-align:${qAlign};">${escapeHtml(q.q)}</div>`;
-    renderTextOptions(optsEl, ['A','B','C','D'], q.options || {}, currentAnswer, isEnglish);
+    qTextEl.innerHTML = bodyHTML + `<div style="font-size:17px;line-height:1.9;color:var(--text);">${escapeHtml(q.q)}</div>`;
+    renderTextOptions(optsEl, ['A','B','C','D'], q.options || {}, currentAnswer);
   }
 
   // Footer state
@@ -2001,7 +2034,6 @@ function renderLetterOptions(optsEl, letters, currentAnswer) {
     const btn = document.createElement('div');
     btn.className = 'assess-option' + (currentAnswer === letter ? ' selected' : '');
     btn.setAttribute('data-sfx', 'select');
-    btn.setAttribute('data-letter', letter);
     btn.style.flex = '1 1 auto';
     btn.style.minWidth = '110px';
     btn.style.maxWidth = '160px';
@@ -2016,27 +2048,20 @@ function renderLetterOptions(optsEl, letters, currentAnswer) {
 }
 
 // Render text MCQ options stacked vertically (A/B/C[/D])
-function renderTextOptions(optsEl, letters, options, currentAnswer, isEnglish) {
+function renderTextOptions(optsEl, letters, options, currentAnswer) {
   optsEl.style.flexDirection = 'column';
   optsEl.style.flexWrap = 'nowrap';
   optsEl.style.justifyContent = 'flex-start';
   optsEl.style.gap = '10px';
-  // English options: LTR with letter badge on the LEFT, text flows left-to-right
-  const optDir   = isEnglish ? 'ltr' : 'rtl';
-  const optAlign = isEnglish ? 'left' : 'right';
   letters.forEach(letter => {
     const text = (options && options[letter]) || '';
     const div  = document.createElement('div');
     div.className = 'assess-option' + (currentAnswer === letter ? ' selected' : '');
     div.setAttribute('data-sfx', 'select');
-    div.setAttribute('data-letter', letter);
-    div.style.direction  = optDir;
-    div.style.flexDirection = isEnglish ? 'row' : 'row-reverse';
     div.onclick = () => selectAssessmentAnswer(letter);
-    const isSelected = currentAnswer === letter;
     div.innerHTML = `
-      <span class="assess-option-letter" style="${isSelected ? 'background:var(--gold);border-color:var(--gold);color:#0d1520;' : ''}">${letter}</span>
-      <span class="assess-option-text" style="direction:${optDir};text-align:${optAlign};">${escapeHtml(text)}</span>
+      <span class="assess-option-letter">${letter}</span>
+      <span class="assess-option-text">${escapeHtml(text)}</span>
     `;
     optsEl.appendChild(div);
   });
@@ -2063,7 +2088,6 @@ function renderTrueFalseOptions(optsEl, currentAnswer) {
     btn.style.fontWeight = '700';
     btn.style.padding = '20px';
     if (currentAnswer === val) btn.style.borderColor = color;
-    btn.setAttribute('data-letter', val);
     btn.onclick = () => selectAssessmentAnswer(val);
     btn.innerHTML = `<span style="color:${currentAnswer === val ? color : 'inherit'};">${label}</span>`;
     optsEl.appendChild(btn);
@@ -2077,8 +2101,7 @@ function renderTextareaAnswer(optsEl, currentAnswer, type) {
   const ta = document.createElement('textarea');
   ta.className = 'assess-textarea';
   ta.value = currentAnswer || '';
-  ta.dir = (S.effectiveSubject === 'English') ? 'ltr' : 'rtl';
-  ta.style.textAlign = (S.effectiveSubject === 'English') ? 'left' : 'right';
+  ta.dir = 'rtl';
   ta.rows = type === 'openended' ? 5 : 2;
   ta.placeholder = type === 'vowelization' ? 'مثال: مفاوضاتٍ مكثّفةً'
                 : type === 'numbers_to_words' ? 'مثال: خمسة عشر كتابًا'
@@ -2126,25 +2149,8 @@ function escapeHtml(s) {
 
 function selectAssessmentAnswer(letter) {
   S.assessmentAnswers[S.assessmentIdx] = letter;
-  // Update highlight WITHOUT re-rendering (which would restart the timer).
-  // Just toggle the .selected class on the existing option elements.
-  const optsEl = document.getElementById('assessOptions');
-  optsEl.querySelectorAll('.assess-option').forEach(el => {
-    const isThis = el.getAttribute('data-letter') === letter;
-    el.classList.toggle('selected', isThis);
-    // Also update the letter badge colour inside the option
-    const badge = el.querySelector('.assess-option-letter');
-    if (badge) {
-      badge.style.background   = isThis ? 'var(--gold)' : '';
-      badge.style.borderColor  = isThis ? 'var(--gold)' : '';
-      badge.style.color        = isThis ? '#0d1520'     : '';
-    }
-  });
-  // Update the answered-count summary
-  const N = S.assessmentQuestions.length;
-  const answered = S.assessmentAnswers.filter(a => a && String(a).trim()).length;
-  document.getElementById('assessSummary').textContent =
-    toAr(answered) + ' من ' + toAr(N) + ' تمت الإجابة';
+  // Re-render to show selection highlight + updated summary
+  renderAssessmentQuestion();
 }
 
 function assessPrev() {
@@ -2182,6 +2188,7 @@ function confirmAssessSubmit() {
 // Called by the user clicking "submit" OR by timer expiry (autoSubmit=true)
 function finalizeAssessment(autoSubmit) {
   if (S.assessmentTimer)  { clearInterval(S.assessmentTimer);  S.assessmentTimer  = null; }
+  if (S.assessmentQTimer) { clearInterval(S.assessmentQTimer); S.assessmentQTimer = null; }
   console.log(`Assessment submitted (autoSubmit=${autoSubmit}). Selections:`, S.assessmentAnswers);
   const cb = S.onAssessmentDone;
   S.onAssessmentDone = null;
@@ -2195,6 +2202,7 @@ async function endEarly() {
   stopRecCountdown();
   stopVisualizer();
   if (S.assessmentTimer)  { clearInterval(S.assessmentTimer);  S.assessmentTimer  = null; }
+  if (S.assessmentQTimer) { clearInterval(S.assessmentQTimer); S.assessmentQTimer = null; }
   if (S.onAssessmentDone) {
     const cb = S.onAssessmentDone;
     S.onAssessmentDone = null;
@@ -2291,6 +2299,7 @@ function newInterview() {
   S.subject=''; S.effectiveSubject=''; S.assessmentQuestions=[]; S.assessmentAnswers=[]; S.assessmentIdx=0;
   S.assessmentLeft=getAssessDuration('');
   if (S.assessmentTimer)  { clearInterval(S.assessmentTimer);  S.assessmentTimer=null; }
+  if (S.assessmentQTimer) { clearInterval(S.assessmentQTimer); S.assessmentQTimer=null; }
   S.assessmentQLeft = ASSESS_Q_SECONDS;
   S.onAssessmentDone=null;
   S.currentQ=0; S.phase='idle'; S.ended=false;
