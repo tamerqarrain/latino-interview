@@ -298,7 +298,9 @@ async function appendReportToSheet({ name, email, phone, exp, role, location, ex
       assessmentResult ? `${assessmentResult.score}/${assessmentResult.total}` : '',
       assessmentResult ? `${assessmentResult.percentage}%` : '',
       result.overallScore, result.grade,
-      result.recommendation === 'PASS' ? 'مؤهَّل للامتحان التأهيلي' : 'غير مؤهَّل',
+      result.recommendation === 'PASS' ? 'مؤهَّل للامتحان التأهيلي'
+        : result.recommendation === 'PENDING' ? 'بحاجة لمراجعة يدوية (فشل التقييم الآلي)'
+        : 'غير مؤهَّل',
       result.recommendationReason || '',
       result.summary || '',
       (result.strengths || []).join(' • '),
@@ -578,12 +580,14 @@ ${qaBlock}
         console.error('Raw response length:', raw.length);
         console.error('First 200 chars:', raw.slice(0, 200));
         console.error('Last 200 chars :', raw.slice(-200));
-        return; // exit background processing — can't email/sheet without parsed result
+        // Don't drop the candidate — send a manual-review fallback instead of silently returning.
+        await sendFallbackNotification({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, rawAssessmentAnswers: assessmentAnswers, reason: 'تعذّر تحليل استجابة الذكاء الاصطناعي (JSON غير صالح)' });
+        return;
       }
 
       if (resend && HR_EMAIL) {
         try {
-          const html = buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result });
+          const html = buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result, rawAssessmentAnswers: assessmentAnswers });
           const recLabel = result.recommendation === 'PASS' ? 'مؤهَّل للامتحان التأهيلي' : 'غير مؤهَّل';
           await resend.emails.send({
             from:    `لاتينو <${FROM_EMAIL}>`,
@@ -603,16 +607,20 @@ ${qaBlock}
       await appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result });
     } catch (err) {
       console.error('Evaluate (background) error:', err);
+      // API outage / rate limit / credit exhaustion / network error — never let this
+      // silently drop the candidate. Send a manual-review fallback instead.
+      await sendFallbackNotification({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, rawAssessmentAnswers: assessmentAnswers, reason: err.message || String(err) });
     }
   })();
 });
 
 // Build a clean RTL HTML email of the report for HR
-function buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result }) {
+function buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result, rawAssessmentAnswers }) {
   const { overallScore, grade, summary, questionEvals, strengths, areasForGrowth, recommendation, recommendationReason } = result;
   const pass     = recommendation === 'PASS';
-  const recColor = pass ? '#27ae60' : '#e74c3c';
-  const recLabel = pass ? '✓ مؤهَّل للانتقال إلى الامتحان التأهيلي' : '✕ غير مؤهَّل في هذه المرحلة';
+  const pending  = recommendation === 'PENDING';
+  const recColor = pass ? '#27ae60' : pending ? '#e8a020' : '#e74c3c';
+  const recLabel = pass ? '✓ مؤهَّل للانتقال إلى الامتحان التأهيلي' : pending ? '⚠ تعذّر التقييم الآلي — بحاجة لمراجعة يدوية' : '✕ غير مؤهَّل في هذه المرحلة';
   const date = new Date().toLocaleDateString('ar-EG', { year:'numeric', month:'long', day:'numeric' });
 
   const qaRows = questions.map((q, i) => {
@@ -717,6 +725,24 @@ function buildReportEmail({ name, email, phone, exp, role, location, expectedSal
       <div style="font-weight:bold;color:#c9a84c;font-size:13px;border-bottom:1px solid #eee;padding-bottom:8px;margin-bottom:12px;">تفاصيل تقييم مادة ${subjectName}</div>
       <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">${qRows}</table>
     `;
+  } else if (subject && Array.isArray(rawAssessmentAnswers) && rawAssessmentAnswers.length > 0) {
+    // AI grading failed/unavailable — show the candidate's raw, ungraded answers so nothing is lost.
+    const allQs = ASSESSMENTS[subject] || [];
+    const rawRows = allQs.map((item, i) => {
+      const ans = rawAssessmentAnswers[i];
+      const hasAns = ans !== undefined && ans !== null && String(ans).trim() !== '';
+      const qLabel = item.q ? item.q : (item.image ? '(سؤال على شكل صورة)' : `سؤال ${i+1}`);
+      return `<tr><td style="padding:10px;border-bottom:1px solid #eee;">
+        <div style="font-weight:bold;color:#1a2840;font-size:13px;">س${i+1}: ${escapeHtml(qLabel)}</div>
+        <div style="color:#666;font-size:12px;margin-top:4px;">إجابة المرشح: <strong>${hasAns ? escapeHtml(String(ans)) : '(لم تتم الإجابة)'}</strong></div>
+      </td></tr>`;
+    }).join('');
+    assessmentBlock = `
+      <div style="background:#fff8e8;border:1px solid #e8a020;border-radius:8px;padding:14px 18px;margin-bottom:16px;">
+        <div style="font-weight:bold;color:#e8a020;">⚠ لم يتم تصحيح تقييم مادة ${subjectName} آلياً — الإجابات الخام أدناه بحاجة لمراجعة يدوية</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">${rawRows}</table>
+    `;
   }
 
   return `<!DOCTYPE html><html dir="rtl" lang="ar"><body style="font-family:Tahoma,Arial,sans-serif;background:#f0f0f0;margin:0;padding:20px;">
@@ -769,6 +795,51 @@ function buildReportEmail({ name, email, phone, exp, role, location, expectedSal
     </div>
   </div>
 </body></html>`;
+}
+
+// Builds a placeholder "result" object for when Claude grading fails entirely
+// (API outage, credit exhaustion, rate limit, bad JSON, etc.) so the candidate's
+// contact info + raw answers are never silently dropped.
+function buildFallbackResult(reason) {
+  return {
+    overallScore: 0,
+    grade: '?',
+    summary: 'تعذّر إجراء التقييم الآلي لهذا المرشح بسبب خطأ تقني في خدمة الذكاء الاصطناعي. الرجاء مراجعة إجاباته يدوياً أدناه.',
+    questionEvals: [],
+    strengths: [],
+    areasForGrowth: [],
+    recommendation: 'PENDING',
+    recommendationReason: `فشل التقييم الآلي: ${reason}. تم إرسال هذا التقرير كإشعار احتياطي حتى لا يُفقد المرشح — يرجى المراجعة اليدوية واتخاذ القرار.`,
+  };
+}
+
+// Sent whenever the Claude evaluation call fails/throws or returns unparseable output.
+// Guarantees HR still gets the candidate's contact info + raw answers (email + sheet row),
+// just without AI scoring — instead of the report vanishing entirely.
+async function sendFallbackNotification({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, rawAssessmentAnswers, reason }) {
+  const result = buildFallbackResult(reason);
+  if (resend && HR_EMAIL) {
+    try {
+      const html = buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result, rawAssessmentAnswers });
+      await resend.emails.send({
+        from:    `لاتينو <${FROM_EMAIL}>`,
+        to:      HR_EMAIL.split(',').map(e => e.trim()),
+        subject: `⚠️ تعذّر التقييم الآلي: ${name} — ${role} — بحاجة لمراجعة يدوية`,
+        html,
+      });
+      console.log(`Fallback (manual-review) report emailed for ${name}`);
+    } catch (mailErr) {
+      console.error('Fallback email send failed:', mailErr.message);
+    }
+  } else {
+    console.warn('Fallback email not sent (RESEND_API_KEY / HR_EMAIL missing).');
+  }
+  try {
+    await appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result });
+    console.log(`Fallback row appended to sheet for ${name}`);
+  } catch (sheetErr) {
+    console.error('Fallback sheet append failed:', sheetErr.message);
+  }
 }
 
 // ─────────────────────────────────────────────────────
