@@ -8,6 +8,7 @@ const multer     = require('multer');
 const path       = require('path');
 const fs         = require('fs');
 const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
 const QUESTIONS  = require('./questions');
 const ASSESSMENTS = require('./assessments');
@@ -26,11 +27,52 @@ const DEEPGRAM_API_KEY   = process.env.DEEPGRAM_API_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const VOICE_ID           = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
 
-// Email (Resend) — reports are emailed to HR, hidden from candidates
+// Email — reports are emailed to HR, hidden from candidates.
+// Two providers supported, tried in this order:
+//   1) Gmail SMTP (GMAIL_USER + GMAIL_APP_PASSWORD) — Google-to-Google delivery,
+//      not subject to the shared onboarding@resend.dev sandbox sender's reputation.
+//      Set these in Railway once you have a Gmail/Workspace App Password.
+//   2) Resend (RESEND_API_KEY) — kept as a fallback if Gmail isn't configured.
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const HR_EMAIL       = process.env.HR_EMAIL;                       // where reports are sent
 const FROM_EMAIL     = process.env.FROM_EMAIL || 'onboarding@resend.dev';
 const resend         = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+
+const GMAIL_USER         = process.env.GMAIL_USER;
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
+const gmailTransport = (GMAIL_USER && GMAIL_APP_PASSWORD)
+  ? nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+    })
+  : null;
+
+// Unified sender used by every report/fallback email call site. Prefers Gmail SMTP
+// (reliable, first-party, sidesteps shared-sender reputation issues); falls back to
+// Resend if Gmail isn't configured. Throws only if neither provider is set up.
+async function sendHrEmail({ subject, html }) {
+  if (!HR_EMAIL) throw new Error('HR_EMAIL not configured — nowhere to send the report.');
+
+  if (gmailTransport) {
+    await gmailTransport.sendMail({
+      from:    `"لاتينو" <${GMAIL_USER}>`,
+      to:      HR_EMAIL.split(',').map(e => e.trim()),
+      subject,
+      html,
+    });
+    return 'gmail';
+  }
+  if (resend) {
+    await resend.emails.send({
+      from:    `لاتينو <${FROM_EMAIL}>`,
+      to:      HR_EMAIL.split(',').map(e => e.trim()),
+      subject,
+      html,
+    });
+    return 'resend';
+  }
+  throw new Error('No email provider configured (set GMAIL_USER/GMAIL_APP_PASSWORD or RESEND_API_KEY).');
+}
 
 // Google Sheets — appends every report as a row for searchable history
 const GOOGLE_SHEET_ID            = process.env.GOOGLE_SHEET_ID;
@@ -344,7 +386,8 @@ app.get('/api/health', (req, res) => {
     elevenlabs: !!ELEVENLABS_API_KEY,
     deepgram:   !!DEEPGRAM_API_KEY,
     anthropic:  !!process.env.ANTHROPIC_API_KEY,
-    email:      !!(RESEND_API_KEY && HR_EMAIL),
+    email:      !!((gmailTransport || resend) && HR_EMAIL),
+    emailVia:   gmailTransport ? 'gmail' : (resend ? 'resend' : null),
     sheets:     !!sheetsClient,
     voice:      VOICE_ID,
   });
@@ -585,22 +628,16 @@ ${qaBlock}
         return;
       }
 
-      if (resend && HR_EMAIL) {
-        try {
-          const html = buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result, rawAssessmentAnswers: assessmentAnswers });
-          const recLabel = result.recommendation === 'PASS' ? 'مؤهَّل للامتحان التأهيلي' : 'غير مؤهَّل';
-          await resend.emails.send({
-            from:    `لاتينو <${FROM_EMAIL}>`,
-            to:      HR_EMAIL.split(',').map(e => e.trim()),
-            subject: `تقرير مقابلة: ${name} — ${role} — ${recLabel} (${result.overallScore}/100)`,
-            html,
-          });
-          console.log(`Report emailed to ${HR_EMAIL} for candidate ${name}`);
-        } catch (mailErr) {
-          console.error('Email send failed:', mailErr);
-        }
-      } else {
-        console.warn('Email not configured (RESEND_API_KEY / HR_EMAIL missing) — report not sent.');
+      try {
+        const html = buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result, rawAssessmentAnswers: assessmentAnswers });
+        const recLabel = result.recommendation === 'PASS' ? 'مؤهَّل للامتحان التأهيلي' : 'غير مؤهَّل';
+        const via = await sendHrEmail({
+          subject: `تقرير مقابلة: ${name} — ${role} — ${recLabel} (${result.overallScore}/100)`,
+          html,
+        });
+        console.log(`Report emailed to ${HR_EMAIL} for candidate ${name} (via ${via})`);
+      } catch (mailErr) {
+        console.error('Email send failed:', mailErr.message);
       }
 
       // Also log to Google Sheet (parallel — runs even if email fails)
@@ -818,21 +855,15 @@ function buildFallbackResult(reason) {
 // just without AI scoring — instead of the report vanishing entirely.
 async function sendFallbackNotification({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, rawAssessmentAnswers, reason }) {
   const result = buildFallbackResult(reason);
-  if (resend && HR_EMAIL) {
-    try {
-      const html = buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result, rawAssessmentAnswers });
-      await resend.emails.send({
-        from:    `لاتينو <${FROM_EMAIL}>`,
-        to:      HR_EMAIL.split(',').map(e => e.trim()),
-        subject: `⚠️ تعذّر التقييم الآلي: ${name} — ${role} — بحاجة لمراجعة يدوية`,
-        html,
-      });
-      console.log(`Fallback (manual-review) report emailed for ${name}`);
-    } catch (mailErr) {
-      console.error('Fallback email send failed:', mailErr.message);
-    }
-  } else {
-    console.warn('Fallback email not sent (RESEND_API_KEY / HR_EMAIL missing).');
+  try {
+    const html = buildReportEmail({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result, rawAssessmentAnswers });
+    const via = await sendHrEmail({
+      subject: `⚠️ تعذّر التقييم الآلي: ${name} — ${role} — بحاجة لمراجعة يدوية`,
+      html,
+    });
+    console.log(`Fallback (manual-review) report emailed for ${name} (via ${via})`);
+  } catch (mailErr) {
+    console.error('Fallback email send failed:', mailErr.message);
   }
   try {
     await appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result });
@@ -855,7 +886,7 @@ server.listen(PORT, () => {
   console.log(`  Deepgram   : ${DEEPGRAM_API_KEY              ? '✓ configured' : '✗ MISSING'}`);
   console.log(`  Anthropic  : ${process.env.ANTHROPIC_API_KEY ? '✓ configured' : '✗ MISSING'}`);
   console.log(`  Anthropic  : ${process.env.ANTHROPIC_API_KEY ? '✓ configured' : '✗ MISSING'}`);
-  console.log(`  Email      : ${(RESEND_API_KEY && HR_EMAIL) ? '✓ → ' + HR_EMAIL : '✗ not configured'}`);
+  console.log(`  Email      : ${gmailTransport ? '✓ via Gmail SMTP → ' + HR_EMAIL : (RESEND_API_KEY && HR_EMAIL) ? '✓ via Resend → ' + HR_EMAIL : '✗ not configured'}`);
   console.log(`  Sheets     : ${sheetsClient ? '✓ → ' + GOOGLE_SHEET_ID : '✗ not configured'}`);
   console.log(`  Voice ID   : ${VOICE_ID}\n`);
 });
