@@ -56,6 +56,12 @@
   @media (max-height: 820px) {
     #setupScreen { align-items: flex-start; }
   }
+  /* Assessment content length varies a lot (long passages, sectioned questions,
+     math images) and can overflow the viewport even on normal desktop screens.
+     Always top-align it (regardless of viewport height) so the top of the card
+     is never clipped/unreachable when scrolling — unlike the short, fixed-length
+     setup form above, this can't rely on a max-height media query. */
+  #assessScreen { align-items: flex-start; }
 
   /* ══ SETUP ══ */
   .setup-card {
