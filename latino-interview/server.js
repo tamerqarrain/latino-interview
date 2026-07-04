@@ -44,23 +44,38 @@ const gmailTransport = (GMAIL_USER && GMAIL_APP_PASSWORD)
   ? nodemailer.createTransport({
       service: 'gmail',
       auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+      // Many PaaS hosts (Railway included) block outbound raw-SMTP ports (465/587)
+      // for anti-spam reasons — the connection just hangs. Nodemailer's default
+      // timeout is ~2 minutes; cap it at 15s so a blocked connection fails fast and
+      // falls through to Resend quickly instead of stalling the whole report.
+      connectionTimeout: 15000,
+      greetingTimeout:   15000,
+      socketTimeout:     15000,
     })
   : null;
 
-// Unified sender used by every report/fallback email call site. Prefers Gmail SMTP
-// (reliable, first-party, sidesteps shared-sender reputation issues); falls back to
-// Resend if Gmail isn't configured. Throws only if neither provider is set up.
+// Unified sender used by every report/fallback email call site. Tries Gmail SMTP
+// first (first-party, sidesteps shared-sender reputation issues) but if that
+// connection fails — e.g. the host blocks outbound SMTP — falls through to
+// Resend automatically rather than losing the report. Throws only if neither
+// provider is configured, or both are configured and both fail.
 async function sendHrEmail({ subject, html }) {
   if (!HR_EMAIL) throw new Error('HR_EMAIL not configured — nowhere to send the report.');
 
+  let gmailErr = null;
   if (gmailTransport) {
-    await gmailTransport.sendMail({
-      from:    `"لاتينو" <${GMAIL_USER}>`,
-      to:      HR_EMAIL.split(',').map(e => e.trim()),
-      subject,
-      html,
-    });
-    return 'gmail';
+    try {
+      await gmailTransport.sendMail({
+        from:    `"لاتينو" <${GMAIL_USER}>`,
+        to:      HR_EMAIL.split(',').map(e => e.trim()),
+        subject,
+        html,
+      });
+      return 'gmail';
+    } catch (e) {
+      gmailErr = e;
+      console.error('Gmail SMTP send failed, falling back to Resend if configured:', e.message);
+    }
   }
   if (resend) {
     await resend.emails.send({
@@ -69,9 +84,9 @@ async function sendHrEmail({ subject, html }) {
       subject,
       html,
     });
-    return 'resend';
+    return gmailErr ? 'resend (gmail failed)' : 'resend';
   }
-  throw new Error('No email provider configured (set GMAIL_USER/GMAIL_APP_PASSWORD or RESEND_API_KEY).');
+  throw gmailErr || new Error('No email provider configured (set GMAIL_USER/GMAIL_APP_PASSWORD or RESEND_API_KEY).');
 }
 
 // Google Sheets — appends every report as a row for searchable history
