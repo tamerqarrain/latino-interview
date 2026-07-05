@@ -42,7 +42,14 @@ const GMAIL_USER         = process.env.GMAIL_USER;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
 const gmailTransport = (GMAIL_USER && GMAIL_APP_PASSWORD)
   ? nodemailer.createTransport({
-      service: 'gmail',
+      // Explicit host/port 587 (STARTTLS) instead of the `service:'gmail'` shorthand
+      // (which defaults to port 465/implicit TLS). Port 465 timed out on Railway —
+      // testing whether 587 is treated differently, since some PaaS hosts only
+      // block one of the two standard SMTP ports rather than both.
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,      // STARTTLS, not implicit TLS
+      requireTLS: true,
       auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
       // Many PaaS hosts (Railway included) block outbound raw-SMTP ports (465/587)
       // for anti-spam reasons — the connection just hangs. Nodemailer's default
