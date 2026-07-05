@@ -854,7 +854,7 @@
     <p id="assessIntroMsg" style="line-height:1.9;">
       <span id="assessIntroBody">…</span>
       <br><br>
-      <strong style="color:#c9a84c;" id="assessIntroDuration">⏱ المدة المسموحة: ٣٠ دقيقة</strong>
+      <strong style="color:#c9a84c;" id="assessIntroDuration">⏱ الوقت المتبقي من أصل ٤٠ دقيقة للمقابلة الكاملة</strong>
       <br>
       يمكنك العودة إلى الأسئلة السابقة لتعديل إجاباتك قبل التسليم النهائي.
     </p>
@@ -870,7 +870,7 @@
         <span id="assessCounter">السؤال ١ من ٢٥</span>
         <div class="assess-bar"><div class="assess-bar-fill" id="assessBarFill" style="width:4%;"></div></div>
       </div>
-      <div class="assess-timer" id="assessTimer" title="الوقت المتبقي لهذا السؤال">١:٠٠</div>
+      <div class="assess-timer" id="assessTimer" title="الوقت المتبقي من أصل ٤٠ دقيقة للمقابلة الكاملة">١:٠٠</div>
     </div>
 
     <div class="assess-body">
@@ -919,10 +919,19 @@
 // ═══════════════════════════════════════════════
 const READ_SECONDS = 10;   // thinking/reading time after question is spoken
 const MAX_REC_SECONDS = 180; // hard cap on answer recording (3 minutes) — voice mode only
-const TYPE_SECONDS = 5 * 60;     // 5 minutes typing per Q1-Q8 question (and salary)
 
-// Per-question timer durations in the ASSESSMENT (depends on question type).
-// Multiple choice / true-false → short.   Essay/typing questions → 5 min.
+// ── GLOBAL SESSION TIMER ──────────────────────────────────────────
+// ONE 40-minute clock covers the ENTIRE session — all interview questions
+// PLUS the subject assessment together. Candidates can spend as long as
+// they want on any single question; only the running total matters.
+// See startGlobalTimer()/handleGlobalTimeout() below.
+const GLOBAL_TIME_SECONDS = 40 * 60;
+
+const TYPE_SECONDS = 5 * 60;     // DEPRECATED — no longer drives auto-advance (see GLOBAL_TIME_SECONDS above). Kept only so old references don't break.
+
+// DEPRECATED: per-question timer durations in the ASSESSMENT (depends on question type).
+// No longer used to auto-advance — superseded by the single 40-minute GLOBAL_TIME_SECONDS
+// clock above. Left in place only as harmless reference/history.
 const ASSESS_TIMER_BY_TYPE = {
   truefalse:        45,         // T/F is fastest
   mcq3:             60,         // 1 min for 3-option MCQ
@@ -986,10 +995,67 @@ const S = {
   recTimer: null, recLeft: MAX_REC_SECONDS,
   audioCtx: null, analyser: null, vizFrame: null, recMime: '', playCtx: null, ended: false,
   typingMode: false, typeTimer: null,
+  globalTimer: null, globalLeft: GLOBAL_TIME_SECONDS, timedOut: false,
 };
 
 const AR = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
 const toAr = n => String(n).split('').map(d => AR[+d]||d).join('');
+
+// ═══════════════════════════════════════════════
+//  GLOBAL SESSION TIMER
+//  One 40-minute clock for the WHOLE session (interview questions +
+//  subject assessment together). Starts once in beginInterview() and
+//  runs continuously until the session ends normally or times out.
+//  Drives BOTH visible timer badges (#typeTimer during the interview,
+//  #assessTimer during the assessment) so the candidate always sees the
+//  same single countdown, no matter which screen they're on.
+// ═══════════════════════════════════════════════
+function startGlobalTimer() {
+  if (S.globalTimer) return; // already running — never restart mid-session
+  S.globalLeft = GLOBAL_TIME_SECONDS;
+  updateGlobalTimerDisplay();
+  S.globalTimer = setInterval(() => {
+    S.globalLeft--;
+    updateGlobalTimerDisplay();
+    if (S.globalLeft <= 0) {
+      clearInterval(S.globalTimer);
+      S.globalTimer = null;
+      handleGlobalTimeout();
+    }
+  }, 1000);
+}
+
+function stopGlobalTimer() {
+  if (S.globalTimer) { clearInterval(S.globalTimer); S.globalTimer = null; }
+}
+
+function updateGlobalTimerDisplay() {
+  const left  = Math.max(0, S.globalLeft);
+  const mmss  = `${toAr(Math.floor(left/60))}:${toAr(left%60).padStart(2,'٠')}`;
+  const typeEl   = document.getElementById('typeTimer');
+  const assessEl = document.getElementById('assessTimer');
+  if (typeEl) {
+    typeEl.textContent = mmss;
+    typeEl.classList.toggle('warning', left <= 300 && left > 60);
+    typeEl.classList.toggle('danger',  left <= 60);
+  }
+  if (assessEl) {
+    assessEl.textContent = mmss;
+    assessEl.classList.toggle('warn',   left <= 300 && left > 60);
+    assessEl.classList.toggle('danger', left <= 60);
+  }
+}
+
+// Fired once the 40-minute clock hits zero, from whatever screen/question
+// the candidate happens to be on. Reuses endEarly() — the same forced-end
+// path as the manual "End Interview" button — so unanswered questions get
+// marked, in-progress assessment answers are preserved/submitted, and the
+// session proceeds straight to evaluation + the thank-you screen.
+function handleGlobalTimeout() {
+  if (S.ended || S.timedOut) return;
+  S.timedOut = true;
+  endEarly();
+}
 
 // ═══════════════════════════════════════════════
 //  SOUND EFFECTS — short oscillator-based clicks
@@ -1183,6 +1249,7 @@ async function beginInterview() {
   document.getElementById('roomRole').textContent = toAr(role) + ' · ' + exp;
   buildProgressDots();
   showScreen('roomScreen');
+  startGlobalTimer(); // single 40-minute clock for the whole session, starts now
   setTimeout(doIntro, 700);
 }
 
@@ -1360,29 +1427,10 @@ function switchToTyping() {
     document.getElementById('typeCharCount').textContent = toAr(ta.value.length) + ' حرف';
   };
 
-  // Start a 5-minute typing countdown for THIS question.
-  // CRITICAL: clear any previous timer first so we don't get orphaned intervals
-  // (otherwise old timers from previous questions keep ticking and force premature
-  // auto-submits on later questions — making it feel like "5 min total" instead of per-Q).
-  if (S.typeTimer) { clearInterval(S.typeTimer); S.typeTimer = null; }
-
-  let typeLeft = TYPE_SECONDS;
-  const timerEl = document.getElementById('typeTimer');
-  const fmtTime = (s) => `${toAr(Math.floor(s/60))}:${toAr(s%60).padStart(2,'٠')}`;
-  timerEl.textContent = fmtTime(typeLeft);
-  timerEl.classList.remove('warning', 'danger');
-
-  S.typeTimer = setInterval(() => {
-    typeLeft--;
-    timerEl.classList.toggle('warning', typeLeft <= 60 && typeLeft > 15);
-    timerEl.classList.toggle('danger',  typeLeft <= 15);
-    timerEl.textContent = fmtTime(Math.max(0, typeLeft));
-    if (typeLeft <= 0) {
-      clearInterval(S.typeTimer);
-      S.typeTimer = null;
-      doneAnswering(); // auto-submit when time runs out
-    }
-  }, 1000);
+  // No per-question timer anymore — the #typeTimer badge now shows the single
+  // 40-minute GLOBAL countdown (already running since beginInterview()). Just
+  // refresh it immediately so it doesn't show a stale value from before.
+  updateGlobalTimerDisplay();
 }
 
 // Called when finishing a typed answer (called by doneAnswering when typingMode is on)
@@ -1623,7 +1671,7 @@ async function runQuestion() {
   const label = `السُّؤَالُ ${ordinals[S.currentQ] || toAr(S.currentQ+1)}`;
   const fullText = `${label}. ${q.q}`;
 
-  setStatus('gold', `يُقرأ ${label}`, q.display || q.q);
+  setStatus('gold', `يُقرأ ${label}`, 'استمع إلى السؤال، وتابع نصّه في الأسفل.');
   showQuestionBox(q.display || q.q);
 
   await speak(fullText); // blocks until ElevenLabs audio finishes (uses tashkeel)
@@ -1771,7 +1819,7 @@ async function askExpectedSalary() {
   const question = 'سُؤَالٌ أَخِيرٌ قَبْلَ الْخِتَامِ: مَا هُوَ الرَّاتِبُ الشَّهْرِيُّ الْمُتَوَقَّعُ بِالدِّينَارِ الْأُرْدُنِيِّ؟';
   const display  = 'سؤال أخير: ما هو الراتب الشهري المتوقع بالدينار الأردني؟';
 
-  setStatus('gold', 'سؤال إضافي', display);
+  setStatus('gold', 'سؤال إضافي', 'استمع إلى السؤال، وتابع نصّه في الأسفل.');
   showQuestionBox(display);
   await speak(question);
   if (S.ended) return;
@@ -1852,9 +1900,11 @@ async function runSubjectAssessment() {
                     : effectiveSubject;
   document.getElementById('assessIntroTitle').textContent = `تقييم مادة ${subjectName}`;
 
-  // Dynamic intro body — adapts to question count, timer, and question types
+  // Dynamic intro body — adapts to question count and question types.
+  // Time shown is whatever's LEFT of the single 40-minute session clock
+  // (already running since beginInterview()), not a separate per-subject budget.
   const N         = qs.length;
-  const mins      = Math.round(getAssessDuration(effectiveSubject) / 60);
+  const mins      = Math.max(0, Math.round(S.globalLeft / 60));
   const hasImage  = qs.some(q => q.image);
   const hasTypes  = new Set(qs.map(q => q.type || 'mcq4'));
   const typesList = [];
@@ -1869,7 +1919,7 @@ async function runSubjectAssessment() {
 
   const bodyHTML = `ستبدأ الآن مرحلة تقييم مادة <strong>${subjectName}</strong>. ستظهر لك <strong>${toAr(N)}</strong> سؤالاً${typesDesc}، سؤال واحد في كل شاشة. اقرأ بعناية وأجب عن كل سؤال.`;
   document.getElementById('assessIntroBody').innerHTML = bodyHTML;
-  document.getElementById('assessIntroDuration').textContent = `⏱ المدة المسموحة: ${toAr(mins)} دقيقة`;
+  document.getElementById('assessIntroDuration').textContent = `⏱ الوقت المتبقي من أصل ٤٠ دقيقة للمقابلة الكاملة: ${toAr(mins)} دقيقة`;
 
   showScreen('assessIntroScreen');
 
@@ -1884,13 +1934,13 @@ function startAssessment() {
   if (S.ended) return;
   showScreen('assessScreen');
   renderAssessmentQuestion();
-  startAssessmentTimer();
+  // No separate assessment timer — the single 40-minute GLOBAL timer (running
+  // since beginInterview()) already covers this phase; #assessTimer displays it.
 }
 
+// DEPRECATED — superseded by the single GLOBAL_TIME_SECONDS clock (see
+// startGlobalTimer()). No longer called; kept only as harmless history.
 function startAssessmentTimer() {
-  // Per-question timer is now driven by renderAssessmentQuestion().
-  // We still keep a global hard-cap (sum of all per-question times) that aborts
-  // the assessment if it ever runs long for some reason.
   if (S.assessmentTimer) clearInterval(S.assessmentTimer);
   S.assessmentTimer = setInterval(() => {
     S.assessmentLeft--;
@@ -1902,17 +1952,14 @@ function startAssessmentTimer() {
   }, 1000);
 }
 
-// Per-question timer: starts fresh each time a question is rendered.
-// Duration depends on the question type (T/F 45s, MCQ 60s, image 90s, essay 5min).
-// When it hits 0 → advance (or finalize if this is the last question).
+// DEPRECATED — superseded by the single GLOBAL_TIME_SECONDS clock (see
+// startGlobalTimer()). No longer called; kept only as harmless history.
 function startAssessmentQuestionTimer() {
   if (S.assessmentQTimer) clearInterval(S.assessmentQTimer);
   const q = S.assessmentQuestions[S.assessmentIdx];
   S.assessmentQLeft = getQuestionTimerDuration(q);
-  updateAssessmentTimerDisplay();
   S.assessmentQTimer = setInterval(() => {
     S.assessmentQLeft--;
-    updateAssessmentTimerDisplay();
     if (S.assessmentQLeft <= 0) {
       clearInterval(S.assessmentQTimer);
       S.assessmentQTimer = null;
@@ -1925,20 +1972,6 @@ function startAssessmentQuestionTimer() {
       }
     }
   }, 1000);
-}
-
-function updateAssessmentTimerDisplay() {
-  const t = document.getElementById('assessTimer');
-  if (!t) return;
-  const left = (S.assessmentQLeft !== undefined ? S.assessmentQLeft : 60);
-  const m = Math.floor(left / 60);
-  const s = left % 60;
-  t.textContent = `${toAr(m)}:${toAr(s).padStart(2,'٠')}`;
-  // Thresholds work cleanly for both short (45s) and long (5min) timers:
-  //   warn  → orange at ≤ 30 sec
-  //   danger→ red+pulse at ≤ 10 sec
-  t.classList.toggle('warn',   left <= 30 && left > 10);
-  t.classList.toggle('danger', left <= 10);
 }
 
 function renderAssessmentQuestion() {
@@ -2026,8 +2059,9 @@ function renderAssessmentQuestion() {
   document.getElementById('assessSummary').textContent =
     `${toAr(answered)} من ${toAr(N)} تمت الإجابة`;
 
-  // Reset and start the per-question 5-minute timer
-  startAssessmentQuestionTimer();
+  // No per-question timer — refresh the shared #assessTimer badge with the
+  // current GLOBAL remaining time (the interval already ticks it every second).
+  updateGlobalTimerDisplay();
 }
 
 // Render letter-only buttons (A/B/C/D row) — used for image MCQs
@@ -2204,6 +2238,7 @@ function finalizeAssessment(autoSubmit) {
 
 async function endEarly() {
   S.ended = true;
+  stopGlobalTimer();
   stopReadCountdown();
   stopRecCountdown();
   stopVisualizer();
@@ -2236,7 +2271,8 @@ async function endEarly() {
   document.getElementById('btnNext').disabled = true;
   document.getElementById('btnSkip').disabled = true;
   hideQuestionBox();
-  setStatus('blue', 'جارٍ التقييم', 'جارٍ إعداد تقرير التقييم…');
+  setStatus('blue', 'جارٍ التقييم',
+    S.timedOut ? 'انتهى الوقت المخصّص (٤٠ دقيقة). جارٍ إعداد تقرير التقييم…' : 'جارٍ إعداد تقرير التقييم…');
   setPhase('thinking');
   await runEvaluation();
 }
@@ -2245,6 +2281,7 @@ async function endEarly() {
 //  EVALUATE WITH CLAUDE
 // ═══════════════════════════════════════════════
 async function runEvaluation() {
+  stopGlobalTimer(); // session is over one way or another — stop the clock
   // Candidate immediately sees only the thank-you screen.
   showScreen('thankScreen');
   const statusBox  = document.getElementById('thankStatus');
@@ -2309,6 +2346,7 @@ function newInterview() {
   S.assessmentQLeft = ASSESS_Q_SECONDS;
   S.onAssessmentDone=null;
   S.currentQ=0; S.phase='idle'; S.ended=false;
+  stopGlobalTimer(); S.globalLeft = GLOBAL_TIME_SECONDS; S.timedOut = false;
   S.typingMode=false;
   if (S.typeTimer) { clearInterval(S.typeTimer); S.typeTimer=null; }
   document.getElementById('typePanel').style.display = 'none';
