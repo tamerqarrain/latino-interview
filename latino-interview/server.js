@@ -327,11 +327,45 @@ async function gradeAssessment({ subject, candidateAnswers }) {
   return parsed;
 }
 
-// Append one row per interview to the Google Sheet (creates header row first time)
-async function appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result }) {
+// Builds one plain-text cell summarizing every assessment question + the
+// candidate's answer — used because assessments can have up to ~50 questions,
+// far too many to give each its own column (unlike the fixed 8 interview Qs).
+// Falls back to raw (ungraded) answers if AI grading never ran/failed, so
+// nothing is lost even in the PENDING/manual-review path.
+function buildAssessmentAnswersSummary(subject, assessmentResult, rawAssessmentAnswers) {
+  if (!subject) return '';
+  const qs = ASSESSMENTS[subject] || [];
+  if (qs.length === 0) return '';
+
+  if (assessmentResult && Array.isArray(assessmentResult.perQuestion) && assessmentResult.perQuestion.length > 0) {
+    return qs.map((item, i) => {
+      const pq   = assessmentResult.perQuestion[i] || {};
+      const type = item.type || 'mcq4';
+      let sel    = pq.selected !== undefined && pq.selected !== '' ? pq.selected : '(لا إجابة)';
+      if (type === 'truefalse') sel = sel === 'T' ? 'صحيح' : sel === 'F' ? 'خطأ' : sel;
+      const max    = pq.maxPoints !== undefined ? pq.maxPoints : (item.marks || 1);
+      const earned = pq.earnedPoints !== undefined ? pq.earnedPoints : 0;
+      const mark   = earned >= max ? '✓' : (earned > 0 ? '◐' : '✗');
+      return `س${i + 1}: ${sel} ${mark} (${earned}/${max})`;
+    }).join(' | ');
+  }
+  if (Array.isArray(rawAssessmentAnswers) && rawAssessmentAnswers.length > 0) {
+    return qs.map((item, i) => {
+      const ans    = rawAssessmentAnswers[i];
+      const hasAns = ans !== undefined && ans !== null && String(ans).trim() !== '';
+      return `س${i + 1}: ${hasAns ? ans : '(لم تتم الإجابة)'}`;
+    }).join(' | ');
+  }
+  return '';
+}
+
+// Append one row per interview to the Google Sheet (creates/updates header row as needed)
+async function appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result, rawAssessmentAnswers }) {
   if (!sheetsClient) return;
   try {
-    // Ensure header row exists
+    // IMPORTANT: only ever APPEND new columns to the end of this list, never
+    // insert/reorder — the header-sync logic below rewrites row 1 in place,
+    // which would misalign every existing row if columns moved.
     const HEADER = [
       'التاريخ والوقت', 'اسم المرشح', 'البريد الإلكتروني', 'رقم الهاتف',
       'الوظيفة', 'سنوات الخبرة', 'مكان السكن', 'الراتب المتوقع (دينار)',
@@ -346,22 +380,19 @@ async function appendReportToSheet({ name, email, phone, exp, role, location, ex
       'س6 سؤال', 'س6 إجابة', 'س6 درجة', 'س6 تقييم',
       'س7 سؤال', 'س7 إجابة', 'س7 درجة', 'س7 تقييم',
       'س8 سؤال', 'س8 إجابة', 'س8 درجة', 'س8 تقييم',
+      'تفاصيل إجابات التقييم',
     ];
 
-    // Check if header exists
-    const existing = await sheetsClient.spreadsheets.values.get({
+    // Always (re)write row 1 to match the current HEADER. Safe even on a sheet
+    // that already has data: since columns are only ever appended at the end,
+    // this just adds labels for any new trailing columns (like the one above)
+    // without touching or reordering anything already there.
+    await sheetsClient.spreadsheets.values.update({
       spreadsheetId: GOOGLE_SHEET_ID,
-      range: `${SHEETS_TAB}!A1:A1`,
+      range: `${SHEETS_TAB}!A1`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [HEADER] },
     });
-    if (!existing.data.values || existing.data.values.length === 0) {
-      // Write header row first
-      await sheetsClient.spreadsheets.values.update({
-        spreadsheetId: GOOGLE_SHEET_ID,
-        range: `${SHEETS_TAB}!A1`,
-        valueInputOption: 'USER_ENTERED',
-        requestBody: { values: [HEADER] },
-      });
-    }
 
     // Build the row
     const date = new Date().toLocaleString('ar-EG', { timeZone: 'Asia/Amman' });
@@ -388,6 +419,8 @@ async function appendReportToSheet({ name, email, phone, exp, role, location, ex
       row.push(ev.score || '');
       row.push(ev.evaluation || '');
     }
+    // Full assessment answer breakdown (one cell, pipe-separated — see helper above)
+    row.push(buildAssessmentAnswersSummary(subject, assessmentResult, rawAssessmentAnswers));
 
     await sheetsClient.spreadsheets.values.append({
       spreadsheetId: GOOGLE_SHEET_ID,
@@ -672,7 +705,7 @@ ${qaBlock}
       }
 
       // Also log to Google Sheet (parallel — runs even if email fails)
-      await appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result });
+      await appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result, rawAssessmentAnswers: assessmentAnswers });
     } catch (err) {
       console.error('Evaluate (background) error:', err);
       // API outage / rate limit / credit exhaustion / network error — never let this
@@ -897,7 +930,7 @@ async function sendFallbackNotification({ name, email, phone, exp, role, locatio
     console.error('Fallback email send failed:', mailErr.message);
   }
   try {
-    await appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result });
+    await appendReportToSheet({ name, email, phone, exp, role, location, expectedSalary, subject, assessmentResult, questions, answers, result, rawAssessmentAnswers });
     console.log(`Fallback row appended to sheet for ${name}`);
   } catch (sheetErr) {
     console.error('Fallback sheet append failed:', sheetErr.message);
