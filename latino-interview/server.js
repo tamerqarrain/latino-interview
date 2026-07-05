@@ -85,12 +85,21 @@ async function sendHrEmail({ subject, html }) {
     }
   }
   if (resend) {
-    await resend.emails.send({
+    // IMPORTANT: the Resend SDK does NOT throw on API-level errors — it resolves
+    // with { data, error }. Missing this check meant rejected sends (e.g. an
+    // unverified/restricted recipient) were logged as "success" while nothing
+    // was ever actually queued — nothing shows up in the Resend dashboard at all.
+    const { data, error } = await resend.emails.send({
       from:    `لاتينو <${FROM_EMAIL}>`,
       to:      HR_EMAIL.split(',').map(e => e.trim()),
       subject,
       html,
     });
+    if (error) {
+      console.error('Resend API rejected the send:', JSON.stringify(error));
+      throw new Error(`Resend error: ${error.message || JSON.stringify(error)}`);
+    }
+    console.log('Resend accepted send, id:', data && data.id);
     return gmailErr ? 'resend (gmail failed)' : 'resend';
   }
   throw gmailErr || new Error('No email provider configured (set GMAIL_USER/GMAIL_APP_PASSWORD or RESEND_API_KEY).');
