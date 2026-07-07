@@ -2001,7 +2001,11 @@ function renderAssessmentQuestion() {
     // Image MCQ: show the cropped question/diagram image at top.
     // If options text is provided (math hybrid), render clean text options below
     // so candidates aren't dependent on the (sometimes corrupted) text inside the image.
-    qTextEl.innerHTML = bodyHTML + `
+    // `displayQ` (hybrid science data-table questions) is real HTML text rendered
+    // ABOVE the image — deliberately NOT baked into the image itself, since text
+    // embedded in a scaled image is fragile across screen sizes/zoom levels.
+    qTextEl.innerHTML = bodyHTML +
+      (q.displayQ ? `<div style="font-size:17px;line-height:1.9;color:var(--text);margin-bottom:16px;">${escapeHtml(q.displayQ)}</div>` : '') + `
       <div style="text-align:center;margin-bottom:18px;">
         <img src="${q.image}" alt="السؤال ${i+1}"
              style="max-width:100%; max-height:50vh; height:auto; width:auto;
