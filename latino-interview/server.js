@@ -251,6 +251,37 @@ async function gradeAssessment({ subject, candidateAnswers }) {
       continue;
     }
 
+    // Passage-as-image + typed answer (e.g. vowelization within an underlined
+    // story passage): unlike the pure-image case above, `q` IS set here (it's
+    // the instruction text, not a hidden grading-only description) — but we
+    // still need Claude to actually SEE the image, since the correct answer
+    // depends on which words/letters are underlined in the photographed passage.
+    if (item.image && item.q && (type === 'vowelization' || type === 'openended' || type === 'numbers_to_words')) {
+      const imgPath = path.join(__dirname, 'public', item.image.replace(/^\//, ''));
+      try {
+        const buf = fs.readFileSync(imgPath);
+        const ext = path.extname(imgPath).toLowerCase();
+        const mediaType = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
+                        : ext === '.webp' ? 'image/webp' : 'image/png';
+        const b64 = buf.toString('base64');
+        contentBlocks.push({
+          type: 'image',
+          source: { type: 'base64', media_type: mediaType, data: b64 },
+        });
+        let qText2 = `^ السؤال ${i + 1} (نوع: ${type}، علامات: ${marks}) — الصورة أعلاه هي النصّ المرجعيّ (تحتوي على الكلمات المخطوط تحتها فعليًّا):\n${item.q}\n`;
+        if (item.rubric) qText2 += `معيار التصحيح: ${item.rubric}\n`;
+        qText2 += `إجابة المرشح: ${sel}`;
+        contentBlocks.push({ type: 'text', text: qText2 });
+      } catch (e) {
+        console.error(`Failed to load passage image for Q${i + 1}:`, imgPath, e.message);
+        contentBlocks.push({
+          type: 'text',
+          text: `السؤال ${i + 1} (نوع: ${type}، علامات: ${marks}): [تعذر تحميل صورة النصّ]\n${item.q}\n${item.rubric ? `معيار التصحيح: ${item.rubric}\n` : ''}إجابة المرشح: ${sel}`,
+        });
+      }
+      continue;
+    }
+
     // Text-based question — format depends on type
     let qText = `السؤال ${i + 1} (نوع: ${type}، علامات: ${marks}):\n`;
     if (item.passage) qText += `النصّ المرجعيّ:\n${item.passage}\n\n`;
@@ -483,6 +514,13 @@ app.get('/api/assessment/:subject', (req, res) => {
   if (!qs) return res.status(404).json({ error: 'Unknown subject' });
   // Return question shape. Strip rubric/answer fields (clients never see grading info).
   const cleaned = qs.map(({ q, options, image, imageOnly, type, passage, sectionStart, marks }) => {
+    // Passage-as-image + typed-answer questions (vowelization/openended/numbers_to_words):
+    // candidate needs to SEE the image (the real underlined passage) AND read the
+    // instruction text, then type an answer — so `q`/type/sectionStart/marks must
+    // survive here, unlike the plain MCQ-image case below.
+    if (image && (type === 'vowelization' || type === 'openended' || type === 'numbers_to_words')) {
+      return { image, imageOnly: !!imageOnly, type, q, sectionStart: sectionStart || null, marks: marks || 1 };
+    }
     // `q` (the full text used for grading/HR review) stays server-only for
     // image questions — the candidate-facing question text is baked into the image.
     if (image) return { image, imageOnly: !!imageOnly, type: 'mcq4', options: options || null };

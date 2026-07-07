@@ -1997,7 +1997,27 @@ function renderAssessmentQuestion() {
   }
 
   // Render based on question type
-  if (q.image) {
+  if (q.image && (type === 'openended' || type === 'vowelization' || type === 'numbers_to_words')) {
+    // Passage-as-image + typed answer: show the real reference image (e.g. a
+    // photographed story with underlined words) at top, then the instruction
+    // text, then a textarea — candidate reads the image and types an answer.
+    const qHtml = escapeHtml(q.q).replace(/&lt;u&gt;/g, '<u style="text-decoration:underline;color:#c9a84c;">').replace(/&lt;\/u&gt;/g, '</u>');
+    const hint = type === 'vowelization' ? 'اكتب الكلمات مع التشكيل (الحركات) الصحيح.'
+              : type === 'numbers_to_words' ? 'اكتب الرقم كاملاً بالكلمات العربية.'
+              : 'اكتب إجابتك في المربّع أدناه.';
+    qTextEl.innerHTML = bodyHTML + `
+      <div style="text-align:center;margin-bottom:18px;">
+        <img src="${q.image}" alt="السؤال ${i+1}"
+             style="max-width:100%; max-height:55vh; height:auto; width:auto;
+                    border-radius:8px; border:1px solid var(--border); background:#fff;
+                    display:inline-block;" />
+      </div>
+      <div style="font-size:17px;line-height:1.9;color:var(--text);white-space:pre-wrap;">${qHtml}</div>
+      <div style="font-size:13px;color:var(--text-dim);margin-top:8px;">${hint}</div>
+    `;
+    renderTextareaAnswer(optsEl, currentAnswer, type);
+  }
+  else if (q.image) {
     // Image MCQ: show the cropped question/diagram image at top (question text
     // + table/diagram both baked into the image itself, same as math questions).
     // If options text is provided (math hybrid), render clean text options below
