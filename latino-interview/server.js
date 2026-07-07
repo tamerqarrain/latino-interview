@@ -221,7 +221,14 @@ async function gradeAssessment({ subject, candidateAnswers }) {
     const marks = item.marks || 1;
     const type = item.type || (item.image ? 'mcq4' : 'mcq4');
 
-    if (item.image) {
+    // Pure image questions (math: no `q` text, the raster screenshot IS the
+    // question) are sent to Claude's vision API. Hybrid image+text questions
+    // (e.g. science data-table questions: `image` for the candidate's display
+    // — often SVG, which Claude's vision API can't read anyway — PLUS a full
+    // `q`/`options` text) skip the image entirely and fall through to the
+    // normal text-question branch below, since the text already fully
+    // describes the table/data.
+    if (item.image && !item.q) {
       const imgPath = path.join(__dirname, 'public', item.image.replace(/^\//, ''));
       try {
         const buf = fs.readFileSync(imgPath);

@@ -45,10 +45,16 @@ const ASSESSMENTS = {
       options: { A: "2π, 8σ", B: "1π, 9σ", C: "1π, 8σ", D: "2π, 9σ" },
     },
     {
+      // Hybrid image+text: `image` shows the actual data table to the candidate
+      // (self-contained visual, matches the math-question style); `q` is kept
+      // for Claude's grading prompt, which reads text only for this question
+      // (see gradeAssessment()'s `item.q` branch under `item.image`).
+      image: "/assets/science/q08.svg",
       q: "الجدول التالي يمثل التفاعل A + B → 2C عند درجة حرارة معينة. التجربة 1: [A]=0.1، [B]=0.1، السرعة الإبتدائية = 3×10⁻³. التجربة 2: [A]=0.1، [B]=0.3، السرعة الإبتدائية = 9×10⁻³. فإذا علمت أنّ الرتبة الكلية للتفاعل تساوي (1)، فإن رتبة التفاعل بالنسبة للمادة A تساوي:",
       options: { A: "صفر", B: "½", C: "1", D: "2" },
     },
     {
+      image: "/assets/science/q09.svg",
       q: "اعتماداً على الجدول التالي، الملح الأكثر تميُّهاً هو: محلول الحمض (1 مول/لتر) — HA: Ka = 6×10⁻⁵، HB: Ka = 4×10⁻⁴، HC: Ka = 1×10⁻²، HD: Ka = 2×10⁻⁴.",
       options: { A: "KD", B: "KC", C: "KB", D: "KA" },
     },
