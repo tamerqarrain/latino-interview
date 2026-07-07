@@ -1993,7 +1993,10 @@ function renderAssessmentQuestion() {
     bodyHTML += `<div style="background:linear-gradient(135deg,rgba(201,168,76,0.12),rgba(201,168,76,0.03));border:1px solid rgba(201,168,76,0.35);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-weight:bold;color:#c9a84c;font-size:14px;">${escapeHtml(q.sectionStart)}</div>`;
   }
   if (q.passage) {
-    bodyHTML += `<details style="margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;" open><summary style="cursor:pointer;font-weight:600;color:#c9a84c;font-size:13px;margin-bottom:6px;">📖 النصّ المرجعيّ — اضغط للإخفاء/الإظهار</summary><div style="margin-top:10px;line-height:1.9;color:var(--text);font-size:14px;white-space:pre-wrap;">${escapeHtml(q.passage)}</div></details>`;
+    // Convert <u>...</u> tags to real underlined spans (used when the passage
+    // has specific letters/words underlined, e.g. a vowelization-in-context question).
+    const passageHtml = escapeHtml(q.passage).replace(/&lt;u&gt;/g, '<u style="text-decoration:underline;color:#c9a84c;">').replace(/&lt;\/u&gt;/g, '</u>');
+    bodyHTML += `<details style="margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;" open><summary style="cursor:pointer;font-weight:600;color:#c9a84c;font-size:13px;margin-bottom:6px;">📖 النصّ المرجعيّ — اضغط للإخفاء/الإظهار</summary><div style="margin-top:10px;line-height:1.9;color:var(--text);font-size:14px;white-space:pre-wrap;">${passageHtml}</div></details>`;
   }
 
   // Render based on question type
