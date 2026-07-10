@@ -921,16 +921,16 @@ const READ_SECONDS = 10;   // thinking/reading time after question is spoken
 const MAX_REC_SECONDS = 180; // hard cap on answer recording (3 minutes) — voice mode only
 
 // ── GLOBAL SESSION TIMER ──────────────────────────────────────────
-// ONE 40-minute clock covers the ENTIRE session — all interview questions
+// ONE 60-minute clock covers the ENTIRE session — all interview questions
 // PLUS the subject assessment together. Candidates can spend as long as
 // they want on any single question; only the running total matters.
 // See startGlobalTimer()/handleGlobalTimeout() below.
-const GLOBAL_TIME_SECONDS = 40 * 60;
+const GLOBAL_TIME_SECONDS = 60 * 60;
 
 const TYPE_SECONDS = 5 * 60;     // DEPRECATED — no longer drives auto-advance (see GLOBAL_TIME_SECONDS above). Kept only so old references don't break.
 
 // DEPRECATED: per-question timer durations in the ASSESSMENT (depends on question type).
-// No longer used to auto-advance — superseded by the single 40-minute GLOBAL_TIME_SECONDS
+// No longer used to auto-advance — superseded by the single 60-minute GLOBAL_TIME_SECONDS
 // clock above. Left in place only as harmless reference/history.
 const ASSESS_TIMER_BY_TYPE = {
   truefalse:        45,         // T/F is fastest
